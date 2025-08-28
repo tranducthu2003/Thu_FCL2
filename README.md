@@ -30,7 +30,7 @@ python dataset/class_order_gen.py
 # Download ImageNet1k
 gdown 1i0ok3LT5_mYmFWaN7wlkpHsitUngGJ8z
 ```
-With ImageNet1K, unzip the downloaded file. Put .npy file in \FCL\dataset\imagenet1k-classes (carefully check the name please.)
+With ImageNet1K, unzip the downloaded file. Put .npy files in \FCL\dataset\imagenet1k-classes (carefully check the name please.)
 
 ## Usage
 ### Running an Experiment
