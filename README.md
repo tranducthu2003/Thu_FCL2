@@ -75,3 +75,7 @@ bash scripts/sweep_STGM_scripts/computer3_gpu1_job0.sh
 - CIFAR-10
 - CIFAR-100
 - IMAGENET1k
+
+## Metrics
+- Average Accuracy
+- Forgetting Average
