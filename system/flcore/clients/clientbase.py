@@ -9,7 +9,6 @@ from utils.data_utils import *
 from flcore.trainmodel.models import *
 
 import os
-import joblib
 
 
 class Client(object):

@@ -390,12 +390,13 @@ class Server(object):
             if sim <= 0:
                 count_negative += 1
 
-        wandb.log({f"cosine/{k}": v for k, v in cosine_to_client0.items()}, step=glob_iter)
+        if self.args.wandb:
+            wandb.log({f"cosine/{k}": v for k, v in cosine_to_client0.items()}, step=glob_iter)
 
-        wandb.log({
-            "cosine_count/positive (>0)": count_positive,
-            "cosine_count/negative (<=0)": count_negative
-        }, step=glob_iter)
+            wandb.log({
+                "cosine_count/positive (>0)": count_positive,
+                "cosine_count/negative (<=0)": count_negative
+            }, step=glob_iter)
 
         self.grads_angle_value = statistics.mean(angle_value)
         # print(f"grad angle: {self.grads_angle_value}")
