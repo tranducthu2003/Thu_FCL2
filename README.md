@@ -28,7 +28,7 @@ pip install -r requirements.txt
 
 # Download and preprocess data (CIFAR100 and CIFAR10)
 cd dataset
-python dataset/cifar100_npy.py
+python cifar100_npy.py
 
 # Download ImageNet1k
 gdown 1i0ok3LT5_mYmFWaN7wlkpHsitUngGJ8z
