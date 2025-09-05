@@ -27,6 +27,7 @@ source .env/bin/activate  # On Windows use: venv\Scripts\activate
 pip install -r requirements.txt
 
 # Download and preprocess data (CIFAR100 and CIFAR10)
+cd dataset
 python dataset/cifar100_npy.py
 
 # Download ImageNet1k
@@ -38,6 +39,7 @@ With ImageNet1K, unzip the downloaded file. Put .npy files in \FCL\dataset\image
 ### Running an Experiment
 ```sh
 # ImageNet1k
+cd FCL
 python3 system/main.py --cfp ./hparams/imagenet1k/FedSTGM.json
 python3 system/main.py --cfp ./hparams/imagenet1k/FedAvg.json 
 
