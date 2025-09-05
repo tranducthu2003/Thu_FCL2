@@ -28,7 +28,6 @@ pip install -r requirements.txt
 
 # Download and preprocess data (CIFAR100 and CIFAR10)
 python dataset/cifar100_npy.py
-python dataset/class_order_gen.py
 
 # Download ImageNet1k
 gdown 1i0ok3LT5_mYmFWaN7wlkpHsitUngGJ8z
