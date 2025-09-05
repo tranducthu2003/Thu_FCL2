@@ -243,7 +243,7 @@ class Server(object):
             log_keys = {
                 "Global/Averaged Train Loss": train_loss,
                 "Global/Averaged Test Accuracy": test_acc,
-                "Global/Averaged Angle": self.angle_value,
+                # "Global/Averaged Angle": self.angle_value,
                 "Global/Averaged Grads Angle": self.grads_angle_value,
                 "Global/Averaged Distance": self.distance_value,
                 "Global/Averaged GradNorm": self.norm_value,

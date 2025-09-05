@@ -7,7 +7,7 @@
     "num_classes": 100,
     "model": "CNN",
     "batch_size": 128,
-    "local_learning_rate": 0.05,
+    "local_learning_rate": 0.005,
     "learning_rate_decay": false,
     "learning_rate_decay_gamma": 0.99,
     "global_rounds": 600,
@@ -47,6 +47,6 @@
     "tgm_meta_lr": 1,
 
     "coreset": false,
-    "tgm": true,
+    "tgm": false,
     "sgm": true
 }
