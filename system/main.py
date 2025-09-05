@@ -184,11 +184,11 @@ if __name__ == "__main__":
         cfdct = json.load(f)
     if args.note is not None:
         cfdct['note'] = args.note
-    # if args.nt is not None:
-    #     cfdct['num_tasks'] = args.nt
+    if args.nt is not None:
+        cfdct['num_tasks'] = args.nt
 
 
-    # cfdct['nt'] = args.nt
+    cfdct['nt'] = args.nt
     cfdct['wandb'] = args.wandb
     cfdct['offlog'] = args.offlog
     cfdct['log'] = args.log
