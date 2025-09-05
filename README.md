@@ -14,6 +14,9 @@ Federated Continual Learning (FCL) Benchmark is a standardized evaluation framew
 ```sh
 # Clone the repository
 git clone https://github.com/chickbong221/FCL.git
+git fetch origin
+git checkout -b PFLlib-based origin/PFLlib-based
+
 cd FCL
 
 # Create a virtual environment (optional but recommended)
