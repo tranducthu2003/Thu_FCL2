@@ -1,4 +1,4 @@
-# Federated Continual Learning Benchmark
+# Federated Continual Learning Benchmark - Lucaz version - ???
 
 ## Overview
 Federated Continual Learning (FCL) Benchmark is a standardized evaluation framework for assessing continual learning methods in federated settings. It provides datasets, evaluation metrics, and baseline implementations to facilitate research in FCL.
