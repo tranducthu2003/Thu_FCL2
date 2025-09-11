@@ -1,7 +1,7 @@
 import numpy as np
 
 # Đường dẫn tới file
-file_path = 'class_order_cifar10.npy'
+file_path = '/home/lucaznguyen/FCL/dataset/class_order/class_order_cifar10.npy'
 
 # Đọc file .npy
 data = np.load(file_path)

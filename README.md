@@ -64,6 +64,7 @@ bash scripts/sweep_STGM_scripts/computer3_gpu1_job0.sh
 ```
 
 ## Benchmarked Algorithms
+- **FedAvg**
 - **FedSTGM**
 - **AF-FCL** 
 - **FedWeIT**
@@ -73,13 +74,34 @@ bash scripts/sweep_STGM_scripts/computer3_gpu1_job0.sh
 - **FedALA** 
 - **FedAS**
 - **FedDBE**
-- **FedAvg**
+
+- **GLFC** <- New
+- **LANDER** <- New
 
 ## Datasets
 - CIFAR-10
 - CIFAR-100
 - IMAGENET1k
+- NLP (Nguyet Anh) <- New
+  - AG News (Ongoing)
+  - Amazon Review (Ongoing)
+  - Shakepeare (Ongoing)
+  - Sent140 (Ongoing)
+- Audio (Nhi) <- New
+  - Google Speech Commands (Ongoing)
+  - Mel‑spectrograms (Ongoing)
+  - UrbanSound8K (Ongoing)
+  - CREMA-D (Ongoing)
+  - IEMOCAP (Ongoing)
 
 ## Metrics
 - Average Accuracy
 - Forgetting Average
+
+##
+- AAFCL
+- AlexNet
+- Bi-LSTM
+- FedWeit
+- MobileNet
+- ViT Prompt

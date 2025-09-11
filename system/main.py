@@ -21,6 +21,9 @@ from flcore.servers.serveraffcl import FedAFFCL
 from flcore.servers.servertarget import FedTARGET
 from flcore.servers.serverl2p import FedL2P
 
+from flcore.servers.serverLANDER import LANDERServer
+from flcore.servers.serverGLFC import GLFCServer
+
 from flcore.trainmodel.models import *
 
 from flcore.trainmodel.AFFCL_models import AFFCLModel
@@ -150,6 +153,10 @@ def run(args):
             args.model = BaseHeadSplit(args.model, args.head)
             server = FedL2P(args, i)
 
+        elif args.algorithm == "GLFC":
+            server = GLFCServer(args, i)
+        elif args.algorithm == "LANDER":
+            server = LANDERServer(args, i)
         else:
             raise NotImplementedError
 
@@ -177,6 +184,25 @@ if __name__ == "__main__":
     parser.add_argument('--seval', action='store_true', help='Log Spatio Gradient')
     parser.add_argument('--teval', action='store_true', help='Log Temporal Gradient')
     parser.add_argument('--pca_eval', action='store_true', help='Log PCA Gradient')
+
+    # GLFC
+    parser.add_argument("--glfc_T", type=float, default=2.0)
+    parser.add_argument("--glfc_alpha", type=float, default=0.5)             # class-imbalance compensation exponent
+    parser.add_argument("--glfc_distill", type=float, default=1.0)           # KD coeff
+    parser.add_argument("--glfc_relation", type=float, default=1.0)          # relation KD coeff
+    parser.add_argument("--glfc_mem_per_class", type=int, default=20)
+    parser.add_argument("--use_memory", action="store_true", default=True)
+
+    # LANDER
+    parser.add_argument("--lander_T", type=float, default=2.0)
+    parser.add_argument("--lander_kd", type=float, default=0.5)
+    parser.add_argument("--lander_lambda_bound", type=float, default=1.0)
+    parser.add_argument("--lander_radius", type=float, default=0.5)
+    parser.add_argument("--lander_text_encoder", type=str, default="clip-ViT-B-32")
+    parser.add_argument("--lander_text_template", type=str, default="a photo of a {}")
+
+    # Shared / model side
+    parser.add_argument("--feature_dim", type=int, default=512)
 
     args = parser.parse_args()
 
