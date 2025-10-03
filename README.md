@@ -2,6 +2,51 @@
 
 This branch provides a clean Federated Continual Learning (FCL) benchmark with ready-to-run baselines, reproducible data preparation, colored training progress, and two data-partition modes, Tuan and Lucaz.
 
+# General Information
+
+## 1, Algorithms
+
+| Algorithm                                       | Venue                      | Paper                                                                                                                       | Original code base                                             | Newly added | Verified |
+| ----------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ----------: | -------: |
+| **FedAvg**                                      | AISTATS 2017               | [Communication-Efficient Learning of Deep Networks from Decentralized Data] ([Proceedings of Machine Learning Research][1]) | —                                                              |             |        ⏳ pending |
+| **GLFC** (Federated Class-Incremental Learning) | CVPR 2022                  | [Federated Class-Incremental Learning] ([CVF Open Access][2])                                                               | [conditionWang/FCIL] ([GitHub][3])                             |          ✔️ |        ⏳ pending |
+| **LANDER**                                      | CVPR 2024                  | [Text-Enhanced Data-free Approach for FCIL] ([CVF Open Access][4])                                                          | [tmtuan1307/LANDER] ([GitHub][5])                              |          ✔️ |        ⏳ pending |
+| **FedWeIT**                                     | ICML 2021                  | [Federated Continual Learning with Weighted Inter-client Transfer] ([Proceedings of Machine Learning Research][6])          | [wyjeong/FedWeIT] ([GitHub][7])                                |             |        ⏳ pending |
+| **TARGET**                                      | ICCV 2023                  | [TARGET, Federated Class-Continual Learning via Exemplar-Free Distillation] ([CVF Open Access][8])                          | [zj-jayzhang/Federated-Class-Continual-Learning] ([GitHub][9]) |             |        ⏳ pending |
+| **FedALA**                                      | AAAI 2023                  | [Adaptive Local Aggregation for Personalized FL] ([AAAI Open Access Journal][10])                                           | [TsingZ0/FedALA] ([GitHub][11])                                |             |        ⏳ pending |
+| **FedAS**                                       | CVPR 2024                  | [Bridging Inconsistency in Personalized FL] ([CVF Open Access][12])                                                         | [xiyuanyang45/FedAS] ([GitHub][13])                            |             |        ⏳ pending |
+| **FedDBE**                                      | NeurIPS 2023               | [Eliminating Domain Bias for FL in Representation Space] ([NeurIPS Proceedings][14])                                        | [TsingZ0/DBE] ([GitHub][15])                                   |             |        ⏳ pending |
+| **FedL2P**                                      | NeurIPS 2023               | [Federated Learning to Personalize] ([NeurIPS Proceedings][16])                                                             | —                                                              |             |        ⏳ pending |
+
+[1]: https://proceedings.mlr.press/v54/mcmahan17a/mcmahan17a.pdf "Communication-Efficient Learning of Deep Networks from ..."
+[2]: https://openaccess.thecvf.com/content/CVPR2022/html/Dong_Federated_Class-Incremental_Learning_CVPR_2022_paper.html "[CVPR-2022] Federated Class-Incremental Learning"
+[3]: https://github.com/conditionWang/FCIL "conditionWang/FCIL: This is the formal code ..."
+[4]: https://openaccess.thecvf.com/content/CVPR2024/html/Tran_Text-Enhanced_Data-free_Approach_for_Federated_Class-Incremental_Learning_CVPR_2024_paper.html "CVPR 2024 Open Access Repository"
+[5]: https://github.com/tmtuan1307/LANDER "tmtuan1307/LANDER: [CVPR-2024] Text-Enhanced Data- ..."
+[6]: https://proceedings.mlr.press/v139/yoon21b/yoon21b.pdf "Federated Continual Learning with Weighted Inter-client ..."
+[7]: https://github.com/wyjeong/FedWeIT "wyjeong/FedWeIT"
+[8]: https://openaccess.thecvf.com/content/ICCV2023/papers/Zhang_TARGET_Federated_Class-Continual_Learning_via_Exemplar-Free_Distillation_ICCV_2023_paper.pdf "TARGET: Federated Class-Continual Learning via Exemplar ..."
+[9]: https://github.com/zj-jayzhang/Federated-Class-Continual-Learning "zj-jayzhang/Federated-Class-Continual-Learning: This is ..."
+[10]: https://ojs.aaai.org/index.php/AAAI/article/view/26330 "FedALA: Adaptive Local Aggregation for Personalized ..."
+[11]: https://github.com/TsingZ0/FedALA "TsingZ0/FedALA: AAAI 2023 accepted paper ..."
+[12]: https://openaccess.thecvf.com/content/CVPR2024/papers/Yang_FedAS_Bridging_Inconsistency_in_Personalized_Federated_Learning_CVPR_2024_paper.pdf "Bridging Inconsistency in Personalized Federated Learning"
+[13]: https://github.com/xiyuanyang45/FedAS "Code Implementation and Informations about FedAS"
+[14]: https://proceedings.neurips.cc/paper_files/paper/2023/hash/2e0d3c6ad1a4d85bef3cfe63af58bc76-Abstract-Conference.html "Eliminating Domain Bias for Federated Learning in ..."
+[15]: https://github.com/TsingZ0/DBE "TsingZ0/DBE: NeurIPS 2023 accepted paper, Eliminating ..."
+[16]: https://proceedings.neurips.cc/paper_files/paper/2023/file/2fb57276bfbaf1b832d7bfcba36bb41c-Paper-Conference.pdf "FedL2P: Federated Learning to Personalize"
+
+## 2, Dataset
+
+| Dataset         | Modality   | #Classes | Image size (input)                              | Train / Test       | Per-class `.npy` folder       | Prep command                                                        | Default `cpt` | Default `#tasks` (`nt`) | Partition modes supported | Normalization (mean / std)                                  | Notes                                                                                    |
+| --------------- | ---------- | -------: | ----------------------------------------------- | ------------------ | ----------------------------- | ------------------------------------------------------------------- | ------------: | ----------------------: | ------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **CIFAR-10**    | RGB images |       10 | 32×32                                           | 50,000 / 10,000    | `dataset/cifar10-classes/`    | `python dataset/cifar10_npy.py`                                     |             2 |                       5 | `current`, `mine`         | mean [0.4914, 0.4822, 0.4465], std [0.2023, 0.1994, 0.2010] | Label names available (airplane…truck). Uses all samples of selected classes by default. |
+| **CIFAR-100**   | RGB images |      100 | 32×32                                           | 50,000 / 10,000    | `dataset/cifar100-classes/`   | `python dataset/cifar100_npy.py`                                    |             2 |                      50 | `current`, `mine`         | mean [0.4914, 0.4822, 0.4465], std [0.2023, 0.1994, 0.2010] | Class IDs 0–99. Common alternative is `cpt=10` (10 tasks).                               |
+| **ImageNet-1K** | RGB images |    1,000 | variable (typically resized/cropped to 224×224) | ~1.28M / 50k (val) | `dataset/imagenet1k-classes/` | *(prepare `.npy` per class; follow your local script/instructions)* |             2 |                     500 | `current`, `mine`         | mean [0.485, 0.456, 0.406], std [0.229, 0.224, 0.225]       | Ensure storage available for per-class dumps. Transforms/resize set in your loaders.     |
+
+
+
+# Experimental Setup
+
 ## 1, Installation
 
 ### 1.1, Environment
