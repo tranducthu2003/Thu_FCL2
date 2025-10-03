@@ -1,0 +1,21 @@
+=== Data Partition Plan (dataset=CIFAR10, clients=10, classes=10) ===
+Client 0:
+  Task 0: |classes|=2  [2:bird, 8:ship]
+Client 1:
+  Task 0: |classes|=2  [2:bird, 8:ship]
+Client 2:
+  Task 0: |classes|=2  [2:bird, 8:ship]
+Client 3:
+  Task 0: |classes|=2  [2:bird, 8:ship]
+Client 4:
+  Task 0: |classes|=2  [2:bird, 8:ship]
+Client 5:
+  Task 0: |classes|=2  [2:bird, 8:ship]
+Client 6:
+  Task 0: |classes|=2  [2:bird, 8:ship]
+Client 7:
+  Task 0: |classes|=2  [2:bird, 8:ship]
+Client 8:
+  Task 0: |classes|=2  [2:bird, 8:ship]
+Client 9:
+  Task 0: |classes|=2  [2:bird, 8:ship]

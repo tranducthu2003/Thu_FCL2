@@ -41,6 +41,11 @@ torch.manual_seed(0)
 
 
 def run(args):
+
+    if args.partition_options == "current":
+        partition_name = "tuan_partition"
+    elif args.partition_options == "mine":
+        partition_name = "lucaz_partition"
     
     if args.wandb:
         wandb.login(key="b1d6eed8871c7668a889ae74a621b5dbd2f3b070")
@@ -48,7 +53,8 @@ def run(args):
             project="FCL",
             entity="letuanhf-hanoi-university-of-science-and-technology",
             config=args, 
-            name=f"{args.dataset}_{args.model}_{args.algorithm}_{args.optimizer}_lr{args.local_learning_rate}_{args.note}" if args.note else f"{args.dataset}_{args.model}_{args.algorithm}_{args.optimizer}_lr{args.local_learning_rate}", 
+            name=f"{args.dataset}_{args.model}_{args.algorithm}_{args.optimizer}_lr{args.local_learning_rate}_{partition_name}_{args.note}" if args.note
+                  else f"{args.dataset}_{args.model}_{args.algorithm}_{args.optimizer}_lr{args.local_learning_rate}_{partition_name}", 
         )
 
     time_list = []
@@ -85,7 +91,7 @@ def run(args):
         elif model_str == "Swin_t":
             args.model = torchvision.models.swin_t(weights=None, num_classes=args.num_classes).to(args.device)
         elif model_str == "AFFCLModel":    
-            args.model = AFFCLModel(args).to(args.device)
+            args.model = AFFCLModel(args)
         elif model_str == "VitL2P":
             args.model = VitL2P(
                 num_classes=args.num_classes,
@@ -160,6 +166,13 @@ def run(args):
         else:
             raise NotImplementedError
 
+        
+        try:
+            from utils.partition_viz import visualize_and_print_partition
+            visualize_and_print_partition(server, args, fig_dir="figures")
+        except Exception as e:
+            print(f"[WARN] Partition visualization failed: {e}")
+
         server.train()
 
         time_list.append(time.time()-start)
@@ -184,6 +197,15 @@ if __name__ == "__main__":
     parser.add_argument('--seval', action='store_true', help='Log Spatio Gradient')
     parser.add_argument('--teval', action='store_true', help='Log Temporal Gradient')
     parser.add_argument('--pca_eval', action='store_true', help='Log PCA Gradient')
+
+    parser.add_argument('--device_id', type=str, default='0', help='cuda device id')
+
+    parser.add_argument('--partition_options',
+        type=str,
+        choices=["current", "most_papers", "mine"],
+        default="current",
+        help="Data partition scheme: 'current' uses the repo's class-order slicing; 'most_papers' and 'mine' are pluggable alternatives."
+    )
 
     # GLFC
     parser.add_argument("--glfc_T", type=float, default=2.0)
@@ -223,6 +245,7 @@ if __name__ == "__main__":
     cfdct['seval'] = args.seval
     cfdct['teval'] = args.teval
     cfdct['pca_eval'] = args.pca_eval
+    cfdct['partition_options'] = args.partition_options
 
     print(args.seval)
     print(args.teval)
@@ -241,6 +264,7 @@ if __name__ == "__main__":
     if args.device == "cuda" and not torch.cuda.is_available():
         print("\ncuda is not avaiable.\n")
         args.device = "cpu"
+
 
     run(args)
 

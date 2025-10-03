@@ -10,7 +10,7 @@ from flcore.criterion.distillation import (
     kl_divergence_with_temperature as kd_kl,
     relation_mse
 )
-from flcore.utils.memory import ExemplarMemory, class_frequency
+from flcore.utils_core.memory import ExemplarMemory, class_frequency
 
 class clientGLFC(Client):
     """

@@ -10,8 +10,11 @@ import copy
 import time
 import random
 from datetime import datetime
-from utils.data_utils import *
+# from utils.data_utils import *
 from flcore.metrics.average_forgetting import metric_average_forgetting
+
+import time
+from utils.rich_progress import RichRoundLogger
 
 import statistics
 
@@ -35,6 +38,8 @@ class Server(object):
         self.algorithm = args.algorithm
         self.time_threthold = args.time_threthold
         self.offlog = args.offlog
+        self._roundlog = RichRoundLogger(args, fig_dir=getattr(args, "fig_dir", "figures"))
+
         self.save_folder = f"{args.out_folder}/{args.dataset}_{args.algorithm}_{args.model_str}_{args.optimizer}_lr{args.local_learning_rate}_{args.note}" if args.note else f"{args.out_folder}/{args.dataset}_{args.algorithm}_{args.model_str}_{args.optimizer}_lr{args.local_learning_rate}"
         if self.offlog:    
             if os.path.exists(self.save_folder):
@@ -80,6 +85,12 @@ class Server(object):
     def set_clients(self, clientObj):
         for i in range(self.num_clients):
             print(f"Creating client {i} ...")
+
+            if self.args.partition_options == "current":
+                from utils.data_utils import read_client_data_FCL_cifar10, read_client_data_FCL_cifar100, read_client_data_FCL_imagenet1k
+            elif self.args.partition_options == "mine":
+                from utils.data_utils_mine import read_client_data_FCL_cifar10, read_client_data_FCL_cifar100, read_client_data_FCL_imagenet1k
+
             if self.args.dataset == 'IMAGENET1k':
                 train_data, label_info = read_client_data_FCL_imagenet1k(i, task=0, classes_per_task=self.args.cpt, count_labels=True)
             elif self.args.dataset == 'CIFAR100':
