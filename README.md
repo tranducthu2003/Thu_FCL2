@@ -304,3 +304,179 @@ python system/main.py --cfp ./hparams/FedAvg.json --partition_options current --
 # 4b, run with mine partition, knobs set in utils/data_utils_mine.py
 python system/main.py --cfp ./hparams/FedAvg.json --partition_options mine --log True --offlog True
 ```
+
+## 10, Suggested Experiments (what to run & why)
+
+### Metrics used throughout
+
+* **Global Top‑1** on current/seen classes (per round & per task).
+* **Average Forgetting** (already implemented as `metric_average_forgetting`) — core FCL metric.
+* **Per‑client accuracy distribution** (mean/±std/percentiles) — fairness/personalization.
+* **Compute / time**: round time, total time, communication (number of rounds × participating clients).
+* *(Optional)* **Gradient diagnostics**: when `--seval/--teval/pca_eval` are enabled.
+
+---
+
+### Tier 0 – Sanity & reproducibility (quick, ~minutes)
+
+These ensure the pipeline, partitions, and logging behave as expected.
+
+| ID   | Aim                          | Command (template)                                                                                                      | Why                                                                            |
+| ---- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| S0.1 | Smoke‑test CIFAR‑10, 5 tasks | `python system/main.py --cfp ./hparams/FedAvg.json --partition_options current --cpt 2 --nt 5 --log True --offlog True` | Confirms training loop, saving, CSV logging work end‑to‑end.                   |
+| S0.2 | Partition printout           | *(already in your server: prints task 0 classes per client)*                                                            | Verifies **current** partition class sets differ by client as expected.        |
+| S0.3 | Switch to **mine**           | `python system/main.py --cfp ./hparams/FedAvg.json --partition_options mine --cpt 2 --nt 5 --log True`                  | Confirms **mine** is actually used (Task‑0 labels differ when `HETERO_PSI>0`). |
+| S0.4 | Partition visualization      | *(your `partition_viz` helper)*                                                                                         | Produces heatmaps/CSV to visually confirm client × task × class layout.        |
+
+---
+
+### Tier 1 – Core baselines matrix (CIFAR‑10/100; **current** vs **mine**)
+
+Establish reference numbers you can cite. Use **FedAvg**, **GLFC**, **LANDER** (or your available algorithms).
+
+> **Setup**: in `hparams/FedAvg.json` (or per‑algo JSON), set: `dataset`, `num_clients`, `global_rounds`, `local_epochs`, `batch_size`, `join_ratio`, etc.
+
+#### CIFAR‑10 (5 tasks, cpt=2)
+
+| ID    | Algo   | Partition | Command                                          | Why                                                           |
+| ----- | ------ | --------- | ------------------------------------------------ | ------------------------------------------------------------- |
+| C10.1 | FedAvg | current   | `... --partition_options current --cpt 2 --nt 5` | Baseline for small‑K datasets.                                |
+| C10.2 | GLFC   | current   | `... --partition_options current --cpt 2 --nt 5` | FCL‑aware baseline; establishes forgetting baseline.          |
+| C10.3 | LANDER | current   | `... --partition_options current --cpt 2 --nt 5` | Text‑enhanced FCIL; sanity on small dataset.                  |
+| C10.4 | FedAvg | mine      | `... --partition_options mine --cpt 2 --nt 5`    | Tests sensitivity to **order disorder** (ψ) & overlap (ω, ρ). |
+| C10.5 | GLFC   | mine      | `... --partition_options mine --cpt 2 --nt 5`    | Same as above for advanced method.                            |
+| C10.6 | LANDER | mine      | `... --partition_options mine --cpt 2 --nt 5`    | Same as above.                                                |
+
+#### CIFAR‑100 (50 tasks, cpt=2)
+
+| ID     | Algo   | Partition | Command                                           | Why                                                          |
+| ------ | ------ | --------- | ------------------------------------------------- | ------------------------------------------------------------ |
+| C100.1 | FedAvg | current   | `... --partition_options current --cpt 2 --nt 50` | Standard FCIL stress test; many tasks exacerbate forgetting. |
+| C100.2 | GLFC   | current   | `... --partition_options current --cpt 2 --nt 50` | Benchmarks FCL‑aware method under long curricula.            |
+| C100.3 | LANDER | current   | `... --partition_options current --cpt 2 --nt 50` | Compare with text‑enhanced FCIL across many tasks.           |
+| C100.4 | FedAvg | mine      | `... --partition_options mine --cpt 2 --nt 50`    | Robustness to heterogeneity & asynchronous curricula.        |
+| C100.5 | GLFC   | mine      | `... --partition_options mine --cpt 2 --nt 50`    | See if method benefits or degrades under **ψ/ω/ρ**.          |
+| C100.6 | LANDER | mine      | `... --partition_options mine --cpt 2 --nt 50`    | Same as above.                                               |
+
+**Why Tier 1:** Gives you **headline numbers** (accuracy & forgetting) on standard datasets in both partition styles. These are the reference points for all ablations and claims.
+
+---
+
+### Tier 2 – HeteroScope sweeps (only for **mine** partition)
+
+Change the knobs in **`system/utils/data_utils_mine.py`** (top of file). No parser edits.
+
+* **Order disorder `HETERO_PSI`**: `{0.0, 0.2, 0.5, 1.0}`
+  *Why:* quantify how asynchronous curricula across clients affect convergence & forgetting.
+* **Task overlap `HETERO_OMEGA`**: `{0.0, 0.3, 0.5}`
+  *Why:* overlapping label sets simulate non‑stationary but related tasks; measure stability.
+* **Recurrence `HETERO_RHO`**: `{0.0, 0.2, 0.4}`
+  *Why:* label reappearances may **reduce** forgetting or destabilize; test both.
+* *(Optional)* **Sub‑sampling & label skew**: set `HETERO_USE_ALL_PER_CLASS=False`, `HETERO_PER_TASK_SAMPLES∈{1000, 2000}`, `HETERO_ALPHA∈{0.1, 1.0}`
+  *Why:* evaluate resilience to data quantity and label skew heterogeneity.
+
+**Template command (CIFAR‑100):**
+
+```bash
+# edit data_utils_mine.py knobs, then:
+python system/main.py --cfp ./hparams/FedAvg.json --partition_options mine --cpt 2 --nt 50 --log True --offlog True
+```
+
+**What to collect:**
+Per setting, log **Global Top‑1**, **Average Forgetting**, and a **per‑client accuracy histogram**.
+**Why:** demonstrates your algorithm’s **robustness** to realistic heterogeneity (curriculum asynchrony, overlap, recurrence, scarcity/skew).
+
+---
+
+### Tier 3 – Task & client scaling
+
+Stress test scalability and participation dynamics.
+
+| ID   | Factor             | Values                                               | Command example                   | Why                                                                          |
+| ---- | ------------------ | ---------------------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------- |
+| SC.1 | `num_clients`      | 10 → 50 (same total data; split across more clients) | set in JSON, re-run C100.1/C100.4 | Tests communication & aggregation stability; variance across clients.        |
+| SC.2 | `join_ratio`       | 1.0 → 0.2                                            | set in JSON, keep others          | Partial participation; real FL.                                              |
+| SC.3 | `client_drop_rate` | 0.0 → 0.3                                            | set in JSON                       | Robustness to stragglers/dropouts.                                           |
+| SC.4 | `local_epochs`     | 1, 5, 10                                             | set in JSON                       | Compute/accuracy trade‑off; too many local steps can hurt stability (drift). |
+
+**Why Tier 3:** Validates method **at scale** and under **practical constraints** (partial participation, drops).
+
+---
+
+### Tier 4 – Class‑per‑task & curriculum granularity
+
+Change **cpt** (classes per task). Keep total classes fixed.
+
+| ID  | Dataset   | cpt | nt | Command            | Why                                    |
+| --- | --------- | --: | -: | ------------------ | -------------------------------------- |
+| G.1 | CIFAR‑100 |   2 | 50 | `--cpt 2 --nt 50`  | Long sequences (hardest forgetting).   |
+| G.2 | CIFAR‑100 |   5 | 20 | `--cpt 5 --nt 20`  | Coarser tasks, less severe forgetting. |
+| G.3 | CIFAR‑100 |  10 | 10 | `--cpt 10 --nt 10` | Typical in literature.                 |
+
+**Why Tier 4:** Shows sensitivity to **task granularity** — important when comparing to other papers.
+
+---
+
+### Tier 5 – Diagnostics (optional but insightful)
+
+Turn on your built‑ins to interpret learning dynamics.
+
+| Switch             | Add to command | Why                                                             |
+| ------------------ | -------------- | --------------------------------------------------------------- |
+| Spatio‑grad eval   | `--seval`      | Logs angles/distances between clients/rounds; interpretational. |
+| Temporal‑grad eval | `--teval`      | Temporal dynamics across rounds.                                |
+| PCA eval           | `--pca_eval`   | Stores models to inspect representation evolution offline.      |
+
+---
+
+## Recommended reporting sheet (what to log per run)
+
+| Field                                | Description                                                        |
+| ------------------------------------ | ------------------------------------------------------------------ |
+| **Dataset / Partition**              | CIFAR‑10/100 / current or mine (with psi/omega/rho/alpha if mine). |
+| **Algo**                             | FedAvg, GLFC, LANDER, …                                            |
+| **Clients / join_ratio / drop_rate** | e.g., 10 / 1.0 / 0.0                                               |
+| **cpt / nt**                         | e.g., 2 / 50                                                       |
+| **local_epochs / batch_size / lr**   | e.g., 5 / 128 / 0.01                                               |
+| **Global Top‑1 @ last**              | Final accuracy.                                                    |
+| **Avg Forgetting**                   | At task end (from your `eval_task`).                               |
+| **Per‑client mean±std**              | Distribution and fairness.                                         |
+| **Round time (median)**              | Efficiency.                                                        |
+| **Notes**                            | Any anomalies or hardware notes.                                   |
+
+---
+
+## Why these experiments (summary)
+
+* **Core baselines (Tier 1)** establish **reproducible references** on both partitions. Everything else compares against them.
+* **HeteroScope sweeps (Tier 2)** validate **robustness** to real heterogeneity: asynchronous curricula (ψ), overlapping skills (ω), recurring classes (ρ), and data skew/quantity — all key in FCL.
+* **Scaling (Tier 3)** tests **practical FL constraints** (partial participation, drops), ensuring methods are deployable.
+* **Granularity (Tier 4)** shows sensitivity to **task design** (cpt/nt) so results aren’t over‑fit to a single configuration.
+* **Diagnostics (Tier 5)** help **explain** wins/losses (not just report numbers), which strengthens your paper or report.
+
+---
+
+## Copy‑paste command snippets
+
+> Adjust `--cfp` to your config path and edit `utils/data_utils_mine.py` knobs for **mine**.
+
+**CIFAR‑100, FedAvg, current:**
+
+```bash
+python system/main.py --cfp ./hparams/FedAvg.json --partition_options current --cpt 2 --nt 50 --log True --offlog True
+```
+
+**CIFAR‑100, GLFC, mine (ψ=1.0, ω=0.3, ρ=0.2 set in `data_utils_mine.py`):**
+
+```bash
+python system/main.py --cfp ./hparams/FedAvg.json --partition_options mine --cpt 2 --nt 50 --log True --offlog True
+```
+
+**CIFAR‑10, LANDER, mine (ψ sweep):**
+
+```bash
+# edit HETERO_PSI in data_utils_mine.py -> 0.0 / 0.2 / 0.5 / 1.0, then run:
+python system/main.py --cfp ./hparams/FedAvg.json --partition_options mine --cpt 2 --nt 5 --log True
+```
+
+---
