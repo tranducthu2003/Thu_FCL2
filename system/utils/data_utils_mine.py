@@ -19,9 +19,9 @@ from torch.utils.data import TensorDataset
 # ====== HeteroScope knobs (define them here) ======
 HETERO_SEED: int   = 42          # global seed
 HETERO_ALPHA: float = 10       # label-skew Dirichlet alpha (used only if PER_TASK_SAMPLES > 0)
-HETERO_PSI: float   = 0       # order disorder ψ ∈ [0,1] (adjacent-swap probability)
-HETERO_OMEGA: float = 0       # task overlap ω ∈ [0,1] (adjacent Jaccard approx)
-HETERO_RHO: float   = 0       # recurrence ρ ∈ [0,1] (draw from any earlier tasks)
+HETERO_PSI: float   = 1       # order disorder ψ ∈ [0,1] (adjacent-swap probability)
+HETERO_OMEGA: float = 0.5       # task overlap ω ∈ [0,1] (adjacent Jaccard approx)
+HETERO_RHO: float   = 0.5       # recurrence ρ ∈ [0,1] (draw from any earlier tasks)
 HETERO_USE_ALL_PER_CLASS: bool = True  # if True, use all images per selected class (codebase-like)
 HETERO_PER_TASK_SAMPLES: int   = 0     # if >0 and USE_ALL=False, sample this many per (client,task)
 HETERO_NUM_TASKS: int | None   = None  # if None, T := ceil(K / cpt). Set an int to override.

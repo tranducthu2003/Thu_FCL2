@@ -246,6 +246,7 @@ if __name__ == "__main__":
     cfdct['teval'] = args.teval
     cfdct['pca_eval'] = args.pca_eval
     cfdct['partition_options'] = args.partition_options
+    cfdct['device_id'] = args.device_id
 
     print(args.seval)
     print(args.teval)
