@@ -5,140 +5,200 @@
     "0": {
       "tasks": {
         "0": {
-          "labels": [
-            2,
-            8
+          "present_labels": [
+            0,
+            1
           ],
+          "assigned_labels": [
+            0,
+            1
+          ],
+          "missing_labels": [],
           "counts": {
-            "2": 6000,
-            "8": 6000
-          }
+            "0": 606,
+            "1": 589
+          },
+          "task_index_in_master": null
         }
       }
     },
     "1": {
       "tasks": {
         "0": {
-          "labels": [
-            2,
-            8
+          "present_labels": [
+            0,
+            1
           ],
+          "assigned_labels": [
+            0,
+            1
+          ],
+          "missing_labels": [],
           "counts": {
-            "2": 6000,
-            "8": 6000
-          }
+            "0": 633,
+            "1": 561
+          },
+          "task_index_in_master": null
         }
       }
     },
     "2": {
       "tasks": {
         "0": {
-          "labels": [
-            2,
-            8
+          "present_labels": [
+            4,
+            5
           ],
+          "assigned_labels": [
+            4,
+            5
+          ],
+          "missing_labels": [],
           "counts": {
-            "2": 6000,
-            "8": 6000
-          }
+            "4": 480,
+            "5": 791
+          },
+          "task_index_in_master": null
         }
       }
     },
     "3": {
       "tasks": {
         "0": {
-          "labels": [
-            2,
-            8
+          "present_labels": [
+            0,
+            1
           ],
+          "assigned_labels": [
+            0,
+            1
+          ],
+          "missing_labels": [],
           "counts": {
-            "2": 6000,
-            "8": 6000
-          }
+            "0": 595,
+            "1": 598
+          },
+          "task_index_in_master": null
         }
       }
     },
     "4": {
       "tasks": {
         "0": {
-          "labels": [
-            2,
-            8
+          "present_labels": [
+            8,
+            9
           ],
+          "assigned_labels": [
+            8,
+            9
+          ],
+          "missing_labels": [],
           "counts": {
-            "2": 6000,
-            "8": 6000
-          }
+            "8": 587,
+            "9": 599
+          },
+          "task_index_in_master": null
         }
       }
     },
     "5": {
       "tasks": {
         "0": {
-          "labels": [
+          "present_labels": [
             2,
-            8
+            3
           ],
+          "assigned_labels": [
+            2,
+            3
+          ],
+          "missing_labels": [],
           "counts": {
-            "2": 6000,
-            "8": 6000
-          }
+            "2": 641,
+            "3": 567
+          },
+          "task_index_in_master": null
         }
       }
     },
     "6": {
       "tasks": {
         "0": {
-          "labels": [
+          "present_labels": [
             2,
-            8
+            3
           ],
+          "assigned_labels": [
+            2,
+            3
+          ],
+          "missing_labels": [],
           "counts": {
-            "2": 6000,
-            "8": 6000
-          }
+            "2": 591,
+            "3": 621
+          },
+          "task_index_in_master": null
         }
       }
     },
     "7": {
       "tasks": {
         "0": {
-          "labels": [
+          "present_labels": [
             2,
-            8
+            3
           ],
+          "assigned_labels": [
+            2,
+            3
+          ],
+          "missing_labels": [],
           "counts": {
-            "2": 6000,
-            "8": 6000
-          }
+            "2": 616,
+            "3": 494
+          },
+          "task_index_in_master": null
         }
       }
     },
     "8": {
       "tasks": {
         "0": {
-          "labels": [
-            2,
-            8
+          "present_labels": [
+            4,
+            5
           ],
+          "assigned_labels": [
+            4,
+            5
+          ],
+          "missing_labels": [],
           "counts": {
-            "2": 6000,
-            "8": 6000
-          }
+            "4": 610,
+            "5": 525
+          },
+          "task_index_in_master": null
         }
       }
     },
     "9": {
       "tasks": {
         "0": {
-          "labels": [
-            2,
-            8
+          "present_labels": [
+            4,
+            5
           ],
+          "assigned_labels": [
+            4,
+            5
+          ],
+          "missing_labels": [],
           "counts": {
-            "2": 6000,
-            "8": 6000
-          }
+            "4": 641,
+            "5": 655
+          },
+          "task_index_in_master": null
         }
       }
     }

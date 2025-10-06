@@ -16,6 +16,11 @@ from flcore.metrics.average_forgetting import metric_average_forgetting
 import time
 from utils.rich_progress import RichRoundLogger
 
+# --- at top of file ---
+import torch
+from torch.utils.data import DataLoader
+from typing import Optional, Dict, Any, List, Tuple
+
 import statistics
 
 class Server(object):
@@ -39,6 +44,9 @@ class Server(object):
         self.time_threthold = args.time_threthold
         self.offlog = args.offlog
         self._roundlog = RichRoundLogger(args, fig_dir=getattr(args, "fig_dir", "figures"))
+
+        self._aa_cache = {"round": -1, "cc": None, "tt": None}  # per-class counts cache
+        self._round_tag = -1  # set this each round in train()
 
         self.save_folder = f"{args.out_folder}/{args.dataset}_{args.algorithm}_{args.model_str}_{args.optimizer}_lr{args.local_learning_rate}_{args.note}" if args.note else f"{args.out_folder}/{args.dataset}_{args.algorithm}_{args.model_str}_{args.optimizer}_lr{args.local_learning_rate}"
         if self.offlog:    
@@ -82,23 +90,248 @@ class Server(object):
 
         self.file_name = f"{self.args.algorithm}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
 
+    def _cifar_transforms_for_eval(self):
+        # keep it simple: ToTensor() -> [0,1]; matches your _to_tensordataset normalization
+        from torchvision import transforms
+        return transforms.Compose([transforms.ToTensor()])
+
+    def _build_cifar_global_test(self, dataset_name: str):
+        from torchvision import datasets
+        tfm = self._cifar_transforms_for_eval()
+        if dataset_name.upper() == "CIFAR10":
+            ds = datasets.CIFAR10(root="/home/lucaznguyen/FCL/dataset", train=False, download=True, transform=tfm)
+        elif dataset_name.upper() == "CIFAR100":
+            ds = datasets.CIFAR100(root="/home/lucaznguyen/FCL/dataset", train=False, download=True, transform= tfm)
+        else:
+            raise ValueError("Use a dataset-specific global test loader for ImageNet1K.")
+        return ds
+
+    def _build_imagenet1k_global_test_from_npy(root_dir: str = "dataset/imagenet1k-val-classes"):
+        """
+        Optional: if you have per-class .npy for ImageNet-1K validation, build a flat TensorDataset here.
+        Expected structure: root_dir/{0..999}.npy with HWC uint8.
+        """
+        import numpy as np
+        import os
+        xs, ys = [], []
+        for k in range(1000):
+            p = os.path.join(root_dir, f"{k}.npy")
+            if not os.path.exists(p): continue
+            arr = np.load(p, allow_pickle=True)  # (N,H,W,3) or (N,3,H,W)
+            if arr.ndim == 4 and arr.shape[-1] == 3:
+                pass
+            elif arr.ndim == 4 and arr.shape[1] == 3:
+                arr = np.transpose(arr, (0,2,3,1))
+            else:
+                continue
+            xs.append(arr)
+            ys.append(np.full((arr.shape[0],), k, dtype=np.int64))
+        if not xs:
+            raise FileNotFoundError("No ImageNet-1K val npy files found; please prepare them or implement your own loader.")
+        import numpy as np
+        import torch
+        X = np.concatenate(xs, axis=0)              # HWC uint8
+        Y = np.concatenate(ys, axis=0)              # labels
+        X = torch.tensor(np.transpose(X, (0,3,1,2)), dtype=torch.float32) / 255.0
+        Y = torch.tensor(Y, dtype=torch.long)
+        from torch.utils.data import TensorDataset
+        return TensorDataset(X, Y)
+
+    def _ensure_global_test_loader(self, batch_size: Optional[int] = None, num_workers: int = 0):
+        """
+        Create once and cache a global test DataLoader independent of client splits.
+        """
+        if getattr(self, "_global_test_loader", None) is not None:
+            return self._global_test_loader
+
+        ds_name = str(getattr(self.args, "dataset", "")).upper()
+        bs = int(batch_size or getattr(self.args, "batch_size", 128) or 128)
+
+        if ds_name in ("CIFAR10", "CIFAR100"):
+            ds = self._build_cifar_global_test(ds_name)
+        elif ds_name in ("IMAGENET1K", "IMAGENET1K-CLASSES", "IMAGENET1K_CLASSES"):
+            # Use your prepared val npy folder or implement your own folder loader
+            ds = self._build_imagenet1k_global_test_from_npy("dataset/imagenet1k-val-classes")
+        else:
+            raise NotImplementedError(f"No global test builder for dataset={ds_name}")
+
+        self._global_test_dataset = ds
+        self._global_test_loader  = DataLoader(ds, batch_size=bs, shuffle=False, num_workers=num_workers, pin_memory=False)
+        return self._global_test_loader
+
+
+    def _get_client_task_labels(self, client, task_idx: int):
+        """
+        Return the label list assigned to `client` at task `task_idx`.
+        Compatible with both task_info (new mine) and task_dict (legacy).
+        """
+        # new: data_utils_mine packs label_info by task
+        for name in ("task_info", "task_meta", "task_label_info"):
+            if hasattr(client, name):
+                d = getattr(client, name)
+                if isinstance(d, dict) and task_idx in d:
+                    info = d[task_idx] or {}
+                    if "assigned_labels" in info:
+                        return [int(x) for x in info["assigned_labels"]]
+                    if "labels" in info:
+                        return [int(x) for x in info["labels"]]
+        # legacy: just a list of labels per task
+        if hasattr(client, "task_dict"):
+            try:
+                return [int(x) for x in client.task_dict.get(task_idx, [])]
+            except Exception:
+                pass
+        return []
+
+    @torch.no_grad()
+    def _eval_global_per_class_counts(self, model):
+        """One pass over the global test set (or fallback union-of-clients) to get per-class (correct, total)."""
+        K = int(getattr(self.args, "num_classes", 100))
+        cc = np.zeros(K, dtype=np.int64)  # correct per class
+        tt = np.zeros(K, dtype=np.int64)  # total per class
+
+        # Try separate global loader; else fallback to union-of-clients (equivalent micro average)
+        loader = getattr(self, "_global_test_loader", None)
+        if loader is None:
+            try:
+                loader = self._ensure_global_test_loader()
+            except Exception:
+                loader = None
+
+        dev = next(model.parameters()).device
+        was_training = model.training
+        model.eval()
+
+        def _accumulate(x, y):
+            x = x.to(dev, non_blocking=False)
+            y = y.to(dev, non_blocking=False)
+            pred = model(x).argmax(dim=1)
+
+            # CPU numpy arrays
+            y_np      = y.detach().cpu().numpy()
+            correct_m = (pred == y).detach().cpu().numpy().astype(np.bool_)  # bool mask
+
+            # 1) correct per class (integer bincount on masked y)
+            binc_cor = np.bincount(y_np[correct_m], minlength=K)   # int64
+            cc[:K]  += binc_cor[:K]
+
+            # 2) total per class (integer bincount)
+            binc_tot = np.bincount(y_np, minlength=K)              # int64
+            tt[:K]  += binc_tot[:K]
+
+
+        try:
+            if loader is not None:
+                for batch in loader:
+                    x, y = (batch[0], batch[1]) if isinstance(batch, (list, tuple)) else batch
+                    _accumulate(x, y)
+            else:
+                for cli in self.clients:
+                    if hasattr(cli, "task_test_loaders") and isinstance(cli.task_test_loaders, (list, tuple)):
+                        lds = cli.task_test_loaders
+                    elif hasattr(cli, "test_loaders") and isinstance(cli.test_loaders, (list, tuple)):
+                        lds = cli.test_loaders
+                    elif hasattr(cli, "test_loader") and cli.test_loader is not None:
+                        lds = [cli.test_loader]
+                    else:
+                        lds = []
+                    for ld in lds:
+                        for batch in ld:
+                            x, y = (batch[0], batch[1]) if isinstance(batch, (list, tuple)) else batch
+                            _accumulate(x, y)
+        finally:
+            if was_training: model.train()
+
+        return cc, tt
+
+    def _get_or_build_global_counts(self, round_tag: int):
+        """Memoize per-class counts once per round."""
+        c = self._aa_cache
+        if c["round"] != int(round_tag) or c["cc"] is None or c["tt"] is None:
+            cc, tt = self._eval_global_per_class_counts(self.global_model)
+            self._aa_cache = {"round": int(round_tag), "cc": cc, "tt": tt}
+        return self._aa_cache["cc"], self._aa_cache["tt"]
+
+    @torch.no_grad()
+    def _eval_on_global_test_restricted(self, model, label_set: set[int], upto_task=None):
+        """
+        FAST: use per-class (correct,total) counts cached once per round.
+        Returns (correct, total) for the given label_set.
+        """
+        if not label_set:
+            return 0, 0
+        # Make sure the cache is built for this round
+        cc, tt = self._get_or_build_global_counts(self._round_tag)
+        idx = np.fromiter((int(k) for k in label_set), dtype=np.int64)
+        return int(cc[idx].sum()), int(tt[idx].sum())
+
+
+    def _get_client_task_labels(self, client, task_idx: int) -> List[int]:
+        # same helper as before; reads from client.task_info[task_idx]['assigned_labels'] if available
+        for name in ("task_info", "task_meta", "task_label_info"):
+            if hasattr(client, name):
+                d = getattr(client, name)
+                if isinstance(d, dict) and task_idx in d:
+                    info = d[task_idx] or {}
+                    if "assigned_labels" in info: return [int(x) for x in info["assigned_labels"]]
+                    if "labels" in info:          return [int(x) for x in info["labels"]]
+        if hasattr(client, "task_dict"):
+            try: return [int(x) for x in client.task_dict.get(task_idx, [])]
+            except Exception: pass
+        return []
+
+    def _client_AA_global_upto(self, client, upto_task: int) -> Optional[float]:
+        """
+        AA_c(<=t) = (1/(t+1)) * sum_{s=0..t} A_c,s
+        A_c,s is GLOBAL (micro) accuracy on the separate global test set restricted to client c's task-s labels.
+        Returns percentage in [0,100] or None if no data.
+        """
+        import numpy as np
+        accs = []
+        for s in range(upto_task + 1):
+            labels_s = self._get_client_task_labels(client, s)
+            if not labels_s: continue
+            corr, tot = self._eval_on_global_test_restricted(self.global_model, set(labels_s))
+            if tot > 0:
+                accs.append(corr / tot)
+        if not accs:
+            return None
+        return 100.0 * float(np.mean(accs))
+
+
     def set_clients(self, clientObj):
         for i in range(self.num_clients):
             print(f"Creating client {i} ...")
 
-            if self.args.partition_options == "current":
+            if self.args.partition_options == "tuan":
                 from utils.data_utils import read_client_data_FCL_cifar10, read_client_data_FCL_cifar100, read_client_data_FCL_imagenet1k
-            elif self.args.partition_options == "mine":
+
+                if self.args.dataset == 'IMAGENET1k':
+                    train_data, label_info = read_client_data_FCL_imagenet1k(i, task=0, classes_per_task=self.args.cpt, count_labels=True)
+                elif self.args.dataset == 'CIFAR100':
+                    train_data, label_info = read_client_data_FCL_cifar100(i, task=0, classes_per_task=self.args.cpt, count_labels=True)
+                elif self.args.dataset == 'CIFAR10':
+                    train_data, label_info = read_client_data_FCL_cifar10(i, task=0, classes_per_task=self.args.cpt, count_labels=True)
+                else:
+                    raise NotImplementedError("Not supported dataset")
+
+            elif self.args.partition_options == "hetero":
                 from utils.data_utils_mine import read_client_data_FCL_cifar10, read_client_data_FCL_cifar100, read_client_data_FCL_imagenet1k
 
-            if self.args.dataset == 'IMAGENET1k':
-                train_data, label_info = read_client_data_FCL_imagenet1k(i, task=0, classes_per_task=self.args.cpt, count_labels=True)
-            elif self.args.dataset == 'CIFAR100':
-                train_data, label_info = read_client_data_FCL_cifar100(i, task=0, classes_per_task=self.args.cpt, count_labels=True)
-            elif self.args.dataset == 'CIFAR10':
-                train_data, label_info = read_client_data_FCL_cifar10(i, task=0, classes_per_task=self.args.cpt, count_labels=True)
-            else:
-                raise NotImplementedError("Not supported dataset")
+                if self.args.dataset == 'IMAGENET1k':
+                    train_data, label_info = read_client_data_FCL_imagenet1k(i, task=0, classes_per_task=self.args.cpt, count_labels=True,
+                                                                             seed = self.args.seed, alpha = self.args.alpha,
+                                                                             total_clients = self.args.num_clients,task_disorder = self.args.task_disorder)
+                elif self.args.dataset == 'CIFAR100':
+                    train_data, label_info = read_client_data_FCL_cifar100(i, task=0, classes_per_task=self.args.cpt, count_labels=True,
+                                                                           seed = self.args.seed, alpha = self.args.alpha,
+                                                                           total_clients = self.args.num_clients,task_disorder = self.args.task_disorder)
+                elif self.args.dataset == 'CIFAR10':
+                    train_data, label_info = read_client_data_FCL_cifar10(i, task=0, classes_per_task=self.args.cpt, count_labels=True,
+                                                                          seed = self.args.seed, alpha = self.args.alpha,
+                                                                          total_clients = self.args.num_clients,task_disorder = self.args.task_disorder)
+                else:
+                    raise NotImplementedError("Not supported dataset")
 
             client = clientObj(self.args, id=i, train_data=train_data)
             self.clients.append(client)
@@ -211,8 +444,14 @@ class Server(object):
                     subdir = os.path.join(self.save_folder, f"Client_Local/Client_{c.id}")
                     log_key = f"Client_Local/Client_{c.id}/Averaged Test Accurancy"
 
+                # if self.args.wandb:
+                #     wandb.log({log_key: test_acc}, step=glob_iter)
+
                 if self.args.wandb:
-                    wandb.log({log_key: test_acc}, step=glob_iter)
+                    for cli in self.clients:
+                        aa_pct = self._client_AA_global_upto(cli, upto_task=task)
+                        if aa_pct is not None:
+                            wandb.log({f"Client_Global/Client_{cli.id}/AA_upto_t_global": aa_pct}, step=glob_iter)
                 
                 if self.offlog:
                     os.makedirs(subdir, exist_ok=True)
@@ -284,8 +523,14 @@ class Server(object):
             print(f"Local Averaged Test Accuracy: {test_acc}")
             print(f"Local Averaged Test Loss: {train_loss}")
 
+        # if self.args.wandb:
+        #     wandb.log(log_keys, step=glob_iter)
+
         if self.args.wandb:
-            wandb.log(log_keys, step=glob_iter)
+            for cli in self.clients:
+                aa_pct = self._client_AA_global_upto(cli, upto_task=task)
+                if aa_pct is not None:
+                    wandb.log({f"Client_Global/Client_{cli.id}/AA_upto_t_global": aa_pct}, step=glob_iter)
 
         if self.offlog:
             os.makedirs(subdir, exist_ok=True)

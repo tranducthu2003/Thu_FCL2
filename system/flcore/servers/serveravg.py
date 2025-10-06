@@ -163,6 +163,9 @@ class FedAvg(Server):
             # (B) Rounds within task
             for i in range(self.global_rounds):
                 glob_iter = i + self.global_rounds * task     # 0-based global counter
+
+                self._round_tag = glob_iter
+                
                 disp_round = glob_iter + 1                    # pretty 1-based
                 t0_round = time.time()
 
@@ -188,6 +191,8 @@ class FedAvg(Server):
                         except Exception:
                             pass
 
+                    self._get_or_build_global_counts(self._round_tag)
+
                 # (5) Local training
                 client_summaries = []
                 for j, client in enumerate(self.selected_clients):
@@ -206,30 +211,30 @@ class FedAvg(Server):
                     except Exception as e:
                         ret = {"error": str(e)}
 
-                    # extract metrics from return or client attributes
-                    loss = None
-                    acc = None
-                    if isinstance(ret, dict):
-                        loss = ret.get("loss", ret.get("train_loss"))
-                        acc  = ret.get("acc",  ret.get("accuracy"))
-                    if loss is None:
-                        loss = getattr(client, "last_train_loss", getattr(client, "train_loss", None))
-                    if acc is None:
-                        acc = getattr(client, "last_train_acc", getattr(client, "train_acc", None))
-                        # normalize to %
-                        if isinstance(acc, float) and acc <= 1.0:
-                            acc = acc * 100.0
+                    # # extract metrics from return or client attributes
+                    # loss = None
+                    # acc = None
+                    # if isinstance(ret, dict):
+                    #     loss = ret.get("loss", ret.get("train_loss"))
+                    #     acc  = ret.get("acc",  ret.get("accuracy"))
+                    # if loss is None:
+                    #     loss = getattr(client, "last_train_loss", getattr(client, "train_loss", None))
+                    # if acc is None:
+                    #     acc = getattr(client, "last_train_acc", getattr(client, "train_acc", None))
+                    #     # normalize to %
+                    #     if isinstance(acc, float) and acc <= 1.0:
+                    #         acc = acc * 100.0
 
-                    # if still missing, quickly measure on current train loader (few batches)
-                    if loss is None or acc is None:
-                        loader = _get_current_train_loader(client, task)
-                        try:
-                            device = _get_device_of(client.model)
-                            m_loss, m_acc = _quick_eval_loss_acc(client.model, loader, device, max_batches=10)
-                        except Exception:
-                            m_loss, m_acc = None, None
-                        if loss is None: loss = m_loss
-                        if acc  is None: acc  = m_acc
+                    # # if still missing, quickly measure on current train loader (few batches)
+                    # if loss is None or acc is None:
+                    #     loader = _get_current_train_loader(client, task)
+                    #     try:
+                    #         device = _get_device_of(client.model)
+                    #         m_loss, m_acc = _quick_eval_loss_acc(client.model, loader, device, max_batches=10)
+                    #     except Exception:
+                    #         m_loss, m_acc = None, None
+                    #     if loss is None: loss = m_loss
+                    #     if acc  is None: acc  = m_acc
 
                     # compute delta L2 of local update
                     delta_l2 = None
@@ -240,10 +245,21 @@ class FedAvg(Server):
                     except Exception:
                         pass
 
+                    # --- consistent metrics with W&B ---
+                    try:
+                        # averaged training loss on this client's train split
+                        tr_sum, tr_n = client.train_metrics(task=task)   # returns (sum_ce_loss, num_samples)
+                        train_loss = (tr_sum / max(1, tr_n)) if tr_n else None
+                    except Exception:
+                        train_loss, tr_n = None, None
+
+                    # NEW: client AA on global test set up to current task
+                    aa_pct = self._client_AA_global_upto(client, upto_task=task)
+
                     client_summaries.append({
                         "client": sel_ids[j],
-                        "loss": loss,
-                        "acc": acc,
+                        "loss": train_loss,
+                        "acc": aa_pct,
                         "time": time.time() - per_t0,
                         "samples": getattr(client, "train_samples", None),
                         "delta_l2": delta_l2,

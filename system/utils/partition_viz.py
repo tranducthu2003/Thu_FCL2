@@ -188,9 +188,45 @@ def _fmt_label_list(ids: List[int], name_map: Dict[int, str]) -> str:
 def visualize_and_print_partition(server: Any, args: Any, fig_dir: str = "figures") -> Dict[str, Any]:
     """
     Build a full partition report from the actual datasets held by each client.
-    Prints a table and saves figures & files to fig_dir.
+    Prints a colorized table to console and saves figures & files to fig_dir.
     Returns the report dict for further use.
+
+    Console colors (with rich):
+      - Header: yellow bold
+      - "Client i:": cyan bold
+      - assigned=[...]  (cyan)
+      - present=[...(count)]  (green)
+      - missing=[...]  (red)
+      - (master_task=...)  (magenta)
     """
+
+    # ---------- color console (rich) ----------
+    try:
+        from rich.console import Console
+        _RICH = True
+        console = Console()
+    except Exception:
+        _RICH = False
+        console = None
+
+    # ---- helper to fetch per-task meta stuffed by data_utils_mine.py ----
+    def _get_task_meta(client: Any, tid: int) -> Optional[Dict[str, Any]]:
+        for name in ("task_info", "task_meta", "task_label_info"):
+            if hasattr(client, name):
+                d = getattr(client, name)
+                try:
+                    return d.get(tid)
+                except Exception:
+                    pass
+        if hasattr(client, "task_dict"):
+            try:
+                assigned = client.task_dict.get(tid)
+                if assigned:
+                    return {"assigned_labels": list(map(int, assigned))}
+            except Exception:
+                pass
+        return None
+
     out_dir = _ensure_dir(fig_dir)
     num_clients = len(getattr(server, "clients", []))
     if num_clients == 0:
@@ -201,11 +237,10 @@ def visualize_and_print_partition(server: Any, args: Any, fig_dir: str = "figure
     name_map = _dataset_name_map(dataset_name)
     num_classes = getattr(args, "num_classes", None)
 
-    # 1) Collect per-(client, task) label info
-    # report["clients"][cid]["tasks"][tid] = {"labels": [...], "counts": {...}}
     report: Dict[str, Any] = {"dataset": dataset_name, "num_clients": num_clients, "clients": {}}
     max_tasks = 0
     global_class_ids: set = set()
+    any_assigned_meta = False
 
     for cid, client in enumerate(server.clients):
         ds_list = _extract_task_datasets_from_client(client)
@@ -213,63 +248,134 @@ def visualize_and_print_partition(server: Any, args: Any, fig_dir: str = "figure
             print(f"[PartitionViz] WARNING: Could not locate task datasets for client {cid}.")
         client_entry = {"tasks": {}}
         for tid, ds in enumerate(ds_list):
-            labels, counts = _dataset_unique_labels(ds)
-            labels = sorted(set(int(k) for k in labels))
-            for k in labels:
-                global_class_ids.add(int(k))
-            client_entry["tasks"][tid] = {"labels": labels, "counts": counts}
+            present, counts = _dataset_unique_labels(ds)
+            present = sorted(set(int(k) for k in present))
+            for k in present: global_class_ids.add(int(k))
+
+            meta = _get_task_meta(client, tid) or {}
+            assigned = meta.get("assigned_labels") or meta.get("labels")
+            if assigned is not None:
+                assigned = list(map(int, assigned))
+                any_assigned_meta = True
+                missing = sorted(set(assigned) - set(present))
+            else:
+                missing = []
+
+            client_entry["tasks"][tid] = {
+                "present_labels": present,
+                "assigned_labels": assigned,
+                "missing_labels": missing,
+                "counts": counts,
+                "task_index_in_master": meta.get("task_index_in_master"),
+            }
             max_tasks = max(max_tasks, tid + 1)
         report["clients"][str(cid)] = client_entry
 
     if num_classes is None:
-        # infer from union of labels we saw
-        num_classes = max(global_class_ids) + 1 if global_class_ids else 0
+        num_classes = (max(global_class_ids) + 1) if global_class_ids else 0
     report["num_classes_inferred"] = int(num_classes)
 
-    # 2) Print a readable table (and write to TXT)
+    # ---------- pretty formatting helpers ----------
+    def _fmt_label_list_simple(lbls: List[int]) -> str:
+        return "[" + ", ".join(str(int(k)) for k in (lbls or [])) + "]"
+
+    def _fmt_labels_with_counts(lbls: List[int], cnts: Optional[Dict[int, int]]) -> str:
+        if not lbls: return "[]"
+        parts = []
+        for k in lbls:
+            k = int(k)
+            c = cnts.get(k, 0) if cnts else None
+            parts.append(f"{k}({c})" if c is not None else f"{k}")
+        return "[" + ", ".join(parts) + "]"
+
+    # ---------- 2) Colorized console + plain TXT ----------
     lines = []
     header = f"=== Data Partition Plan (dataset={dataset_name}, clients={num_clients}, classes={num_classes}) ==="
-    print(header)
+    if _RICH: console.print(f"[bold yellow]{header}[/]")
+    else: print(header)
     lines.append(header)
+
     for cid in range(num_clients):
-        cdict = report["clients"].get(str(cid), {})
-        tasks = cdict.get("tasks", {})
-        print(f"Client {cid}:")
+        if _RICH: console.print(f"[bold cyan]Client {cid}:[/]")
+        else: print(f"Client {cid}:")
         lines.append(f"Client {cid}:")
+
+        tasks = report["clients"].get(str(cid), {}).get("tasks", {})
         if not tasks:
-            print("  (no tasks discovered)")
+            if _RICH: console.print("  (no tasks discovered)")
+            else: print("  (no tasks discovered)")
             lines.append("  (no tasks discovered)")
             continue
+
         for tid in sorted(tasks):
-            labels = tasks[tid]["labels"]
-            pretty = _fmt_label_list(labels, name_map)
-            print(f"  Task {tid}: |classes|={len(labels)}  {pretty}")
-            lines.append(f"  Task {tid}: |classes|={len(labels)}  {pretty}")
+            info = tasks[tid]
+            present = info["present_labels"]
+            counts  = info.get("counts") or {}
+            assigned = info.get("assigned_labels")
+            missing  = info.get("missing_labels") or []
+            tm = info.get("task_index_in_master")
+
+            if assigned is None:
+                # no meta -> old behavior (present only)
+                present_txt = _fmt_labels_with_counts(present, counts)
+                if _RICH:
+                    console.print(f"  Task {tid}: |present|={len(present)}  [green]{present_txt}[/]")
+                else:
+                    print(f"  Task {tid}: |present|={len(present)}  {present_txt}")
+                lines.append(f"  Task {tid}: |present|={len(present)}  {present_txt}")
+            else:
+                assigned_txt = _fmt_label_list_simple(assigned)
+                present_txt  = _fmt_labels_with_counts(present, counts)
+                missing_txt  = _fmt_label_list_simple(missing)
+                tm_txt = f"(master_task={tm}) " if tm is not None else ""
+
+                # colored console
+                if _RICH:
+                    console.print(
+                        f"  Task {tid}: [magenta]{tm_txt}[/]"
+                        f"assigned=[cyan]{assigned_txt}[/]  |  "
+                        f"present=[green]{present_txt}[/]  |  "
+                        f"missing=[red]{missing_txt}[/]"
+                    )
+                else:
+                    print(f"  Task {tid}: {tm_txt}assigned={assigned_txt}  |  present={present_txt}  |  missing={missing_txt}")
+
+                # plain text line for file
+                lines.append(
+                    f"  Task {tid}: {tm_txt}assigned={assigned_txt}  |  present={present_txt}  |  missing={missing_txt}"
+                )
+
     (out_dir / "partition_table.txt").write_text("\n".join(lines), encoding="utf-8")
 
-    # 3) Write CSV (long format)
-    # columns: client, task, class_id, count(optional)
-    csv_lines = ["client,task,class_id,count"]
+    # ---------- 3) CSV (include ALL assigned labels with count=0 when present) ----------
+    csv_lines = ["client,task,class_id,count,is_assigned,is_present,master_task_index"]
     for cid in range(num_clients):
         tasks = report["clients"].get(str(cid), {}).get("tasks", {})
         for tid, info in tasks.items():
-            labels = info["labels"]
-            counts = info.get("counts") or {}
-            for k in labels:
-                cnt = counts.get(int(k), "")
-                csv_lines.append(f"{cid},{tid},{int(k)},{cnt}")
+            present = set(info["present_labels"])
+            counts  = info.get("counts") or {}
+            assigned = info.get("assigned_labels")
+            tm = info.get("task_index_in_master")
+            if assigned is None:
+                for k in sorted(present):
+                    csv_lines.append(f"{cid},{tid},{int(k)},{int(counts.get(int(k),0))},0,1,{'' if tm is None else tm}")
+            else:
+                for k in sorted(assigned):
+                    cnt = int(counts.get(int(k), 0))
+                    is_pres = 1 if int(k) in present else 0
+                    csv_lines.append(f"{cid},{tid},{int(k)},{cnt},1,{is_pres},{'' if tm is None else tm}")
     (out_dir / "partition_table.csv").write_text("\n".join(csv_lines), encoding="utf-8")
 
-    # 4) Save JSON
+    # ---------- 4) JSON ----------
     with open(out_dir / "partition_summary.json", "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2)
 
-    # 5) Heatmaps
-    # Build matrices with shape [num_clients * max_tasks, num_classes]
+    # ---------- 5) Heatmaps (unchanged) ----------
     if num_classes and max_tasks:
         H = num_clients * max_tasks
-        presence = np.zeros((H, num_classes), dtype=np.float32)
-        counts   = np.zeros((H, num_classes), dtype=np.float32)
+        presence_present = np.zeros((H, num_classes), dtype=np.float32)
+        presence_assigned = np.zeros((H, num_classes), dtype=np.float32) if any_assigned_meta else None
+        counts_mat = np.zeros((H, num_classes), dtype=np.float32)
         ytick_labels = []
         row = 0
         for cid in range(num_clients):
@@ -278,12 +384,17 @@ def visualize_and_print_partition(server: Any, args: Any, fig_dir: str = "figure
                 info = tasks.get(tid)
                 ytick_labels.append(f"C{cid}-T{tid}")
                 if info:
-                    for k in info["labels"]:
-                        presence[row, int(k)] = 1.0
+                    for k in info["present_labels"]:
+                        if 0 <= int(k) < num_classes:
+                            presence_present[row, int(k)] = 1.0
+                    if presence_assigned is not None and info.get("assigned_labels"):
+                        for k in info["assigned_labels"]:
+                            if 0 <= int(k) < num_classes:
+                                presence_assigned[row, int(k)] = 1.0
                     if info.get("counts"):
                         for k, v in info["counts"].items():
                             if 0 <= int(k) < num_classes:
-                                counts[row, int(k)] = float(v)
+                                counts_mat[row, int(k)] = float(v)
                 row += 1
 
         def _save_heatmap(M: np.ndarray, title: str, path: Path, vmin: float, vmax: float):
@@ -291,27 +402,26 @@ def visualize_and_print_partition(server: Any, args: Any, fig_dir: str = "figure
             plt.imshow(M, aspect="auto", interpolation="nearest", vmin=vmin, vmax=vmax, cmap="Greys")
             plt.colorbar(fraction=0.046, pad=0.04)
             plt.yticks(np.arange(H), ytick_labels, fontsize=6)
-            # Only show some x-ticks if many classes
             if num_classes <= 50:
                 plt.xticks(np.arange(num_classes), [str(i) for i in range(num_classes)], rotation=90, fontsize=6)
             else:
                 step = max(1, num_classes // 50)
                 ticks = np.arange(0, num_classes, step)
                 plt.xticks(ticks, [str(i) for i in ticks], rotation=90, fontsize=6)
-            plt.title(title)
-            plt.tight_layout()
-            plt.savefig(path, dpi=250)
-            plt.close()
+            plt.title(title); plt.tight_layout(); plt.savefig(path, dpi=250); plt.close()
 
-        _save_heatmap(presence, "Class presence by (client, task)", out_dir / "partition_presence_heatmap.png", 0.0, 1.0)
-
-        if counts.max() > 0:
-            # Normalize per-row to highlight relative class density
-            norm_counts = counts / (counts.max(axis=1, keepdims=True) + 1e-8)
-            _save_heatmap(norm_counts, "Per-(client,task) class counts (row-normalized)", out_dir / "partition_counts_heatmap.png", 0.0, 1.0)
+        _save_heatmap(presence_present, "PRESENT: class presence by (client, task)",
+                      out_dir / "partition_presence_present.png", 0.0, 1.0)
+        if presence_assigned is not None:
+            _save_heatmap(presence_assigned, "ASSIGNED: class presence by (client, task) from global task pool",
+                          out_dir / "partition_presence_assigned.png", 0.0, 1.0)
+        if counts_mat.max() > 0:
+            norm_counts = counts_mat / (counts_mat.max(axis=1, keepdims=True) + 1e-8)
+            _save_heatmap(norm_counts, "Per-(client,task) class counts (row-normalized)",
+                          out_dir / "partition_counts_heatmap.png", 0.0, 1.0)
         else:
-            # If counts unavailable, still save a placeholder copy of presence as counts map
-            _save_heatmap(presence, "Per-(client,task) class counts (binary only)", out_dir / "partition_counts_heatmap.png", 0.0, 1.0)
+            _save_heatmap(presence_present, "Per-(client,task) class counts (binary only)",
+                          out_dir / "partition_counts_heatmap.png", 0.0, 1.0)
 
     print(f"[PartitionViz] Wrote partition artifacts to: {out_dir.resolve()}")
     return report

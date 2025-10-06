@@ -5,6 +5,9 @@ dataset/imagenet1k-classes
 dataset/imagenet1k_224_classes
 dataset/synthetic_data
 dataset/imagenet_resize
+dataset/cifar-10-batches-py
+dataset/cifar-10-python.tar.gz
+figures/
 wandb
 test.py
 output_fedweit

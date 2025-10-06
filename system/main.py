@@ -42,10 +42,15 @@ torch.manual_seed(0)
 
 def run(args):
 
-    if args.partition_options == "current":
+    if args.partition_options == "tuan":
         partition_name = "tuan_partition"
-    elif args.partition_options == "mine":
-        partition_name = "lucaz_partition"
+
+        name=f"{args.dataset}_{args.model}_{args.algorithm}_{args.optimizer}_lr{args.local_learning_rate}_{partition_name}_{args.note}" if args.note\
+                  else f"{args.dataset}_{args.model}_{args.algorithm}_{args.optimizer}_lr{args.local_learning_rate}_{partition_name}"
+
+    elif args.partition_options == "hetero":
+        partition_name = "hetero_partition"
+        name = f"{args.dataset}_{args.model}_{args.algorithm}_{args.optimizer}_lr{args.local_learning_rate}_classpertask{args.cpt}_numtasks{args.num_tasks}_numclient{args.num_clients}_alpha{args.alpha}_taskdisoder{args.task_disorder}"
     
     if args.wandb:
         wandb.login(key="b1d6eed8871c7668a889ae74a621b5dbd2f3b070")
@@ -53,8 +58,7 @@ def run(args):
             project="FCL",
             entity="letuanhf-hanoi-university-of-science-and-technology",
             config=args, 
-            name=f"{args.dataset}_{args.model}_{args.algorithm}_{args.optimizer}_lr{args.local_learning_rate}_{partition_name}_{args.note}" if args.note
-                  else f"{args.dataset}_{args.model}_{args.algorithm}_{args.optimizer}_lr{args.local_learning_rate}_{partition_name}", 
+            name=name, 
         )
 
     time_list = []
@@ -197,15 +201,28 @@ if __name__ == "__main__":
     parser.add_argument('--seval', action='store_true', help='Log Spatio Gradient')
     parser.add_argument('--teval', action='store_true', help='Log Temporal Gradient')
     parser.add_argument('--pca_eval', action='store_true', help='Log PCA Gradient')
+    parser.add_argument('--num_clients', type=int, default=10, help='Number of clients')
 
     parser.add_argument('--device_id', type=str, default='0', help='cuda device id')
 
     parser.add_argument('--partition_options',
         type=str,
-        choices=["current", "most_papers", "mine"],
-        default="current",
-        help="Data partition scheme: 'current' uses the repo's class-order slicing; 'most_papers' and 'mine' are pluggable alternatives."
+        choices=["tuan", "hetero"],
+        default="hetero",
+        help="Data partition scheme: 'tuan' uses the repo's class-order slicing; 'hetero' are heterogeneous data partitioning."
     )
+
+    # --- data partition knobs (task-level permutation) ---
+    parser.add_argument('--alpha', type=float, default=0.3,
+                        help='Dirichlet alpha for per-class split across clients (smaller = more skew).')
+    parser.add_argument('--task_disorder', type=float, default=0.5,
+                        help='Task-order disorder in [0,1]: 0 -> same as master; 1 -> random permutation.')
+    parser.add_argument('--client_disorder', type=str, default=None,
+                        help='Optional per-client disorder override as CSV or [list], e.g. "0,0.2,0.8". '
+                            'Client 0 is forced to 0.0 (master) regardless.')
+    parser.add_argument('--seed', type=int, default=42,
+                        help='Random seed for the partitioner.')
+
 
     # GLFC
     parser.add_argument("--glfc_T", type=float, default=2.0)
@@ -247,10 +264,17 @@ if __name__ == "__main__":
     cfdct['pca_eval'] = args.pca_eval
     cfdct['partition_options'] = args.partition_options
     cfdct['device_id'] = args.device_id
+    cfdct["num_clients"] = args.num_clients
 
-    print(args.seval)
-    print(args.teval)
-    print(args.pca_eval)
+    cfdct['alpha'] = args.alpha
+    cfdct['task_disorder'] = args.task_disorder
+    cfdct['client_disorder'] = args.client_disorder
+    cfdct['seed'] = args.seed
+
+
+    # print(args.seval)
+    # print(args.teval)
+    # print(args.pca_eval)
 
     if "tgm" not in cfdct:
         cfdct['tgm'] = True
