@@ -469,49 +469,49 @@ All commands assume your hparams JSON for each algorithm lives under `./hparams/
 ```bash
 # FedAvg
 python system/main.py --cfp ./hparams/cifar10/FedAvg.json \
-  --partition_options mine --cpt 2 --nt 5 \
+  --partition_options hetero --cpt 2 --nt 5 \
   --task_disorder 0.6 --alpha 0.3 --seed 123 \
   --log True --offlog True
 
 # FedWeIT
 python system/main.py --cfp ./hparams/cifar10/FedWeIT.json \
-  --partition_options mine --cpt 2 --nt 5 \
+  --partition_options hetero --cpt 2 --nt 5 \
   --task_disorder 0.6 --alpha 0.3 --seed 123 \
   --log True --offlog True
 
 # TARGET
 python system/main.py --cfp ./hparams/cifar10/TARGET.json \
-  --partition_options mine --cpt 2 --nt 5 \
+  --partition_options hetero --cpt 2 --nt 5 \
   --task_disorder 0.6 --alpha 0.3 --seed 123 \
   --log True --offlog True
 
 # FedALA
 python system/main.py --cfp ./hparams/cifar10/FedALA.json \
-  --partition_options mine --cpt 2 --nt 5 \
+  --partition_options hetero --cpt 2 --nt 5 \
   --task_disorder 0.6 --alpha 0.3 --seed 123 \
   --log True --offlog True
 
 # FedAS
 python system/main.py --cfp ./hparams/cifar10/FedAS.json \
-  --partition_options mine --cpt 2 --nt 5 \
+  --partition_options hetero --cpt 2 --nt 5 \
   --task_disorder 0.6 --alpha 0.3 --seed 123 \
   --log True --offlog True
 
 # FedDBE
 python system.main.py --cfp ./hparams/cifar10/FedDBE.json \
-  --partition_options mine --cpt 2 --nt 5 \
+  --partition_options hetero --cpt 2 --nt 5 \
   --task_disorder 0.6 --alpha 0.3 --seed 123 \
   --log True --offlog True
 
 # FedL2P
 python system/main.py --cfp ./hparams/cifar10/FedL2P.json \
-  --partition_options mine --cpt 2 --nt 5 \
+  --partition_options hetero --cpt 2 --nt 5 \
   --task_disorder 0.6 --alpha 0.3 --seed 123 \
   --log True --offlog True
 
 # FedSTGM
 python system/main.py --cfp ./hparams/cifar10/FedSTGM.json \
-  --partition_options mine --cpt 2 --nt 5 \
+  --partition_options hetero --cpt 2 --nt 5 \
   --task_disorder 0.6 --alpha 0.3 --seed 123 \
   --log True --offlog True
 ```
