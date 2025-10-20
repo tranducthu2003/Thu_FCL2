@@ -7,6 +7,8 @@ from utils.data_utils import *
 from utils.model_utils import ParamDict
 from torch.nn.utils import vector_to_parameters, parameters_to_vector
 
+from flcore.metrics.average_forgetting import metric_average_forgetting
+
 from torch.optim.lr_scheduler import StepLR
 import numpy as np
 
@@ -191,10 +193,24 @@ class FedAvg(Server):
                         except Exception:
                             pass
 
+                    # self.dump_client_task_accuracy_csv(after_task=task, glob_iter=glob_iter)
+
                     self._get_or_build_global_counts(self._round_tag)
 
                 # (5) Local training
                 client_summaries = []
+
+                per_client_forgetting = {}
+                
+                # tag this round; any monotonically increasing counter works
+                self._round_tag = glob_iter  # or use your own global round index
+
+                # 1) Build per-class counts once this round
+                cc, tt = self._get_or_build_global_counts(self._round_tag)
+
+                # 2) For every client, update its accuracy row vector and compute forgetting
+                per_client_forgetting = {}  # cid -> float in [0,1]
+
                 for j, client in enumerate(self.selected_clients):
                     per_t0 = time.time()
 
@@ -255,11 +271,21 @@ class FedAvg(Server):
 
                     # NEW: client AA on global test set up to current task
                     aa_pct = self._client_AA_global_upto(client, upto_task=task)
+                    
+                    acc_vec = self._client_acc_vector_all_tasks_from_counts(client, cc, tt)   # [A_k] for this eval point
+                    self.client_accuracy_matrix.setdefault(client.id, []).append(acc_vec)     # append time row
+
+                    # average forgetting up to current task index
+                    cf = metric_average_forgetting(int(task % self.N_TASKS), self.client_accuracy_matrix[client.id])
+                    per_client_forgetting[client.id] = float(cf)  # keep as fraction
+
+                    cf_pct = per_client_forgetting.get(client.id)
 
                     client_summaries.append({
                         "client": sel_ids[j],
                         "loss": train_loss,
                         "acc": aa_pct,
+                        "forg": (100.0 * cf_pct) if (cf_pct is not None) else None,  # NEW: client forgetting (%)
                         "time": time.time() - per_t0,
                         "samples": getattr(client, "train_samples", None),
                         "delta_l2": delta_l2,
@@ -313,6 +339,11 @@ class FedAvg(Server):
                         pass
 
                 self._roundlog.round_end(round_idx=disp_round, global_metrics=g_metrics, time_cost=elapsed)
+            
+            try:
+                self.dump_global_task_accuracy_csv(after_task=int(task), glob_iter=int(glob_iter))
+            except Exception as e:
+                print(f"[dump global_task_acc] warning: {e}")
 
         self._roundlog.finish()
 

@@ -1,21 +1,21 @@
 === Data Partition Plan (dataset=CIFAR10, clients=10, classes=10) ===
 Client 0:
-  Task 0: assigned=[0, 1]  |  present=[0(606), 1(589)]  |  missing=[]
+  Task 0: assigned=[0, 1]  |  present=[0(988), 1(38)]  |  missing=[]
 Client 1:
-  Task 0: assigned=[0, 1]  |  present=[0(633), 1(561)]  |  missing=[]
+  Task 0: assigned=[0, 1]  |  present=[0(960), 1(4)]  |  missing=[]
 Client 2:
-  Task 0: assigned=[4, 5]  |  present=[4(480), 5(791)]  |  missing=[]
+  Task 0: assigned=[4, 5]  |  present=[4(980), 5(870)]  |  missing=[]
 Client 3:
-  Task 0: assigned=[0, 1]  |  present=[0(595), 1(598)]  |  missing=[]
+  Task 0: assigned=[0, 1]  |  present=[0(115), 1(83)]  |  missing=[]
 Client 4:
-  Task 0: assigned=[8, 9]  |  present=[8(587), 9(599)]  |  missing=[]
+  Task 0: assigned=[8, 9]  |  present=[8(35), 9(590)]  |  missing=[]
 Client 5:
-  Task 0: assigned=[2, 3]  |  present=[2(641), 3(567)]  |  missing=[]
+  Task 0: assigned=[2, 3]  |  present=[2(597), 3(1929)]  |  missing=[]
 Client 6:
-  Task 0: assigned=[2, 3]  |  present=[2(591), 3(621)]  |  missing=[]
+  Task 0: assigned=[2, 3]  |  present=[2(579), 3(653)]  |  missing=[]
 Client 7:
-  Task 0: assigned=[2, 3]  |  present=[2(616), 3(494)]  |  missing=[]
+  Task 0: assigned=[2, 3]  |  present=[2(1284), 3(1047)]  |  missing=[]
 Client 8:
-  Task 0: assigned=[4, 5]  |  present=[4(610), 5(525)]  |  missing=[]
+  Task 0: assigned=[4, 5]  |  present=[4(32), 5(387)]  |  missing=[]
 Client 9:
-  Task 0: assigned=[4, 5]  |  present=[4(641), 5(655)]  |  missing=[]
+  Task 0: assigned=[4, 5]  |  present=[4(430), 5(399)]  |  missing=[]

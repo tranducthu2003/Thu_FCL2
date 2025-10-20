@@ -203,6 +203,8 @@ if __name__ == "__main__":
     parser.add_argument('--pca_eval', action='store_true', help='Log PCA Gradient')
     parser.add_argument('--num_clients', type=int, default=10, help='Number of clients')
 
+    parser.add_argument('--out_folder', type=str, default='./results/', help='Output folder')
+
     parser.add_argument('--device_id', type=str, default='0', help='cuda device id')
 
     parser.add_argument('--partition_options',
@@ -265,6 +267,8 @@ if __name__ == "__main__":
     cfdct['partition_options'] = args.partition_options
     cfdct['device_id'] = args.device_id
     cfdct["num_clients"] = args.num_clients
+
+    cfdct['out_folder'] = args.out_folder
 
     cfdct['alpha'] = args.alpha
     cfdct['task_disorder'] = args.task_disorder

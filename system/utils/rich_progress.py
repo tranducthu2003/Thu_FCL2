@@ -112,21 +112,16 @@ class RichRoundLogger:
             print(f"Selected clients: {', '.join(map(str, sc)) if sc else '(none)'}")
 
     def clients_end(self, round_idx: int, client_summaries: List[Dict[str, Any]]) -> None:
-        """
-        client_summaries: list of dicts with keys:
-            - client (id)
-            - loss (float or None)
-            - acc (float in [0,1] or [0,100], or None)
-            - time (float seconds, optional)
-            - samples (int, optional)
-        """
         if not client_summaries:
             return
-        # Normalize accuracy to %
+        # Normalize accuracy and forgetting to %
         for d in client_summaries:
             acc = d.get("acc", None)
             if acc is not None and acc <= 1.0:
                 d["acc"] = acc * 100.0
+            forg = d.get("forg", None)                              # <<< NEW
+            if forg is not None and forg <= 1.0:                    # <<< NEW
+                d["forg"] = forg * 100.0                            # <<< NEW
 
         if _RICH and self.enable:
             table = Table(
@@ -139,16 +134,19 @@ class RichRoundLogger:
             table.add_column("Client", justify="right", style="bold")
             table.add_column("Loss", justify="right")
             table.add_column("Acc (%)", justify="right")
+            table.add_column("Forgetting (%)", justify="right")      # <<< NEW
             table.add_column("Samples", justify="right")
             table.add_column("Time (s)", justify="right")
 
             for d in client_summaries:
                 loss = d.get("loss")
-                acc = d.get("acc")
+                acc  = d.get("acc")
+                forg = d.get("forg")                                 # <<< NEW
                 samples = d.get("samples")
                 tt = d.get("time")
-                # styling
+
                 loss_txt = f"[bold red]{_fmt_num(loss)}[/bold red]" if loss is not None else "—"
+
                 if acc is None:
                     acc_txt = "—"
                 elif acc >= 90:
@@ -157,34 +155,48 @@ class RichRoundLogger:
                     acc_txt = f"[yellow]{acc:.2f}[/yellow]"
                 else:
                     acc_txt = f"[dim]{acc:.2f}[/dim]"
-                table.add_row(str(d.get("client")),
-                              loss_txt,
-                              acc_txt,
-                              str(samples) if samples is not None else "—",
-                              _fmt_num(tt, 2) if tt is not None else "—")
+
+                # color scale for forgetting: low (good)=green, mid=yellow, high (bad)=red   # <<< NEW
+                if forg is None:                                                            # <<< NEW
+                    forg_txt = "—"                                                          # <<< NEW
+                elif forg <= 5:                                                             # <<< NEW
+                    forg_txt = f"[bold green]{forg:.2f}[/bold green]"                       # <<< NEW
+                elif forg <= 15:                                                            # <<< NEW
+                    forg_txt = f"[yellow]{forg:.2f}[/yellow]"                               # <<< NEW
+                else:                                                                       # <<< NEW
+                    forg_txt = f"[bold red]{forg:.2f}[/bold red]"                           # <<< NEW
+
+                table.add_row(
+                    str(d.get("client")),
+                    loss_txt,
+                    acc_txt,
+                    forg_txt,                                                               # <<< NEW
+                    str(samples) if samples is not None else "—",
+                    _fmt_num(tt, 2) if tt is not None else "—"
+                )
             self.console.print(table)
         else:
-            print("Client  Loss    Acc(%)  Samples  Time(s)")
+            print("Client  Loss    Acc(%)  Forget(%)  Samples  Time(s)")                     # <<< NEW
             for d in client_summaries:
                 loss = _fmt_num(d.get("loss"))
-                acc = d.get("acc")
-                if acc is None:
-                    acc_txt = "—"
-                else:
-                    acc_txt = f"{(acc*100.0 if acc <= 1.0 else acc):.2f}"
+                acc  = d.get("acc")
+                acc_txt = "—" if acc is None else f"{(acc*100.0 if acc <= 1.0 else acc):.2f}"
+                forg = d.get("forg")                                                        # <<< NEW
+                forg_txt = "—" if forg is None else f"{(forg*100.0 if forg <= 1.0 else forg):.2f}"  # <<< NEW
                 smp = d.get("samples")
-                tt = d.get("time")
-                print(f"{d.get('client'):>6}  {loss:>6}  {acc_txt:>7}  {str(smp or '—'):>7}  {_fmt_num(tt,2):>7}")
+                tt  = d.get("time")
+                print(f"{d.get('client'):>6}  {loss:>6}  {acc_txt:>7}  {forg_txt:>9}  {str(smp or '—'):>7}  {_fmt_num(tt,2):>7}")  # <<< NEW
+
 
     def round_end(self, round_idx: int, global_metrics: Dict[str, Any], time_cost: Optional[float] = None) -> None:
         ta = global_metrics.get("test_acc")
         tl = global_metrics.get("test_loss")
-        # normalize test acc to %
+        af = global_metrics.get("avg_forgetting_pct")              # <<< NEW: already in %
         if ta is not None and ta <= 1.0:
             ta = ta * 100.0
 
         # save CSV row
-        self._write_csv(round_idx, ta, tl, time_cost)
+        self._write_csv(round_idx, ta, tl, af, time_cost)          # <<< CHANGED: pass af
 
         if _RICH and self.enable:
             parts = []
@@ -193,28 +205,37 @@ class RichRoundLogger:
             if ta is not None:
                 color = "bold green" if ta >= 80 else "yellow" if ta >= 60 else "dim"
                 parts.append(f"Test Acc: [{color}]{ta:.2f}%[/{color}]")
+            if af is not None:                                     # <<< NEW
+                af_color = "bold green" if af <= 5 else "yellow" if af <= 15 else "bold red"
+                parts.append(f"Avg Forget: [{af_color}]{_fmt_num(af,2)}%[/{af_color}]")
             if time_cost is not None:
                 parts.append(f"Round Time: [bold cyan]{_fmt_num(time_cost,2)}s[/bold cyan]")
             msg = " • ".join(parts) if parts else "—"
             self.console.print(Panel(msg, title=f"Round {round_idx} summary", border_style="magenta"))
 
-            # advance progress
             if self.progress and self._progress_task_id is not None:
                 self.progress.update(self._progress_task_id, advance=1)
         else:
-            print(f"[Summary] Round {round_idx} | TestLoss={_fmt_num(tl)} | TestAcc={(f'{ta:.2f}%' if ta is not None else '—')} | Time={_fmt_num(time_cost,2)}s")
+            af_txt = f" | AvgForget={_fmt_num(af,2)}%" if af is not None else ""            # <<< NEW
+            print(f"[Summary] Round {round_idx} | TestLoss={_fmt_num(tl)} | TestAcc={(f'{ta:.2f}%' if ta is not None else '—')}{af_txt} | Time={_fmt_num(time_cost,2)}s")
+
 
     # ---------- helpers ----------
-    def _write_csv(self, round_idx: int, test_acc_pct: Optional[float], test_loss: Optional[float], time_cost: Optional[float]) -> None:
+    def _write_csv(self, round_idx: int, test_acc_pct: Optional[float], test_loss: Optional[float],
+               avg_forgetting_pct: Optional[float], time_cost: Optional[float]) -> None:   # <<< CHANGED
         try:
             init = not self._csv_initialized or (not self._csv_path.exists())
             with open(self._csv_path, "a", newline="") as f:
                 w = csv.writer(f)
                 if init:
-                    w.writerow(["round", "test_acc_pct", "test_loss", "round_time_s"])
+                    w.writerow(["round", "test_acc_pct", "test_loss", "avg_forgetting_pct", "round_time_s"])  # <<< CHANGED
                     self._csv_initialized = True
-                w.writerow([round_idx, f"{test_acc_pct:.4f}" if test_acc_pct is not None else "", 
-                            f"{float(test_loss):.6f}" if test_loss is not None else "", 
-                            f"{float(time_cost):.4f}" if time_cost is not None else ""])
+                w.writerow([
+                    round_idx,
+                    f"{test_acc_pct:.4f}" if test_acc_pct is not None else "",
+                    f"{float(test_loss):.6f}" if test_loss is not None else "",
+                    f"{avg_forgetting_pct:.4f}" if avg_forgetting_pct is not None else "",                     # <<< NEW
+                    f"{float(time_cost):.4f}" if time_cost is not None else ""
+                ])
         except Exception:
             pass

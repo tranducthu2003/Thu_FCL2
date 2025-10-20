@@ -48,7 +48,7 @@ class Server(object):
         self._aa_cache = {"round": -1, "cc": None, "tt": None}  # per-class counts cache
         self._round_tag = -1  # set this each round in train()
 
-        self.save_folder = f"{args.out_folder}/{args.dataset}_{args.algorithm}_{args.model_str}_{args.optimizer}_lr{args.local_learning_rate}_{args.note}" if args.note else f"{args.out_folder}/{args.dataset}_{args.algorithm}_{args.model_str}_{args.optimizer}_lr{args.local_learning_rate}"
+        self.save_folder = f"{args.out_folder}/{args.dataset}_{args.algorithm}_{args.model_str}_{args.optimizer}_round{args.global_rounds}_localep{args.local_epochs}_lr{args.local_learning_rate}_part{args.partition_options}_cpt{args.cpt}_alpha{args.alpha}_disorder{args.task_disorder}_ddmmyy{datetime.now().strftime('%d%m%y_%H%M%S')}_time{time.time()}"
         if self.offlog:    
             if os.path.exists(self.save_folder):
                 shutil.rmtree(self.save_folder)
@@ -87,6 +87,8 @@ class Server(object):
         self.grads_angle_value = 0
         self.distance_value = 0
         self.norm_value = 0
+
+        self.client_accuracy_matrix = {}
 
         self.file_name = f"{self.args.algorithm}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
 
@@ -136,121 +138,19 @@ class Server(object):
         Y = torch.tensor(Y, dtype=torch.long)
         from torch.utils.data import TensorDataset
         return TensorDataset(X, Y)
-
-    def _ensure_global_test_loader(self, batch_size: Optional[int] = None, num_workers: int = 0):
+    
+    def _global_task_pool_labels(self):
         """
-        Create once and cache a global test DataLoader independent of client splits.
+        Return the GLOBAL task pool: a list of T lists, each containing cpt global class IDs.
+        Uses the natural master order [0..K-1] chunked by cpt.
         """
-        if getattr(self, "_global_test_loader", None) is not None:
-            return self._global_test_loader
-
-        ds_name = str(getattr(self.args, "dataset", "")).upper()
-        bs = int(batch_size or getattr(self.args, "batch_size", 128) or 128)
-
-        if ds_name in ("CIFAR10", "CIFAR100"):
-            ds = self._build_cifar_global_test(ds_name)
-        elif ds_name in ("IMAGENET1K", "IMAGENET1K-CLASSES", "IMAGENET1K_CLASSES"):
-            # Use your prepared val npy folder or implement your own folder loader
-            ds = self._build_imagenet1k_global_test_from_npy("dataset/imagenet1k-val-classes")
-        else:
-            raise NotImplementedError(f"No global test builder for dataset={ds_name}")
-
-        self._global_test_dataset = ds
-        self._global_test_loader  = DataLoader(ds, batch_size=bs, shuffle=False, num_workers=num_workers, pin_memory=False)
-        return self._global_test_loader
+        K   = int(self.args.num_classes)
+        cpt = int(self.args.cpt)
+        T   = (K + cpt - 1) // cpt
+        Y_sets = [list(range(t*cpt, min((t+1)*cpt, K))) for t in range(T)]
+        return Y_sets  # length T, each a list of global class IDs
 
 
-    def _get_client_task_labels(self, client, task_idx: int):
-        """
-        Return the label list assigned to `client` at task `task_idx`.
-        Compatible with both task_info (new mine) and task_dict (legacy).
-        """
-        # new: data_utils_mine packs label_info by task
-        for name in ("task_info", "task_meta", "task_label_info"):
-            if hasattr(client, name):
-                d = getattr(client, name)
-                if isinstance(d, dict) and task_idx in d:
-                    info = d[task_idx] or {}
-                    if "assigned_labels" in info:
-                        return [int(x) for x in info["assigned_labels"]]
-                    if "labels" in info:
-                        return [int(x) for x in info["labels"]]
-        # legacy: just a list of labels per task
-        if hasattr(client, "task_dict"):
-            try:
-                return [int(x) for x in client.task_dict.get(task_idx, [])]
-            except Exception:
-                pass
-        return []
-
-    @torch.no_grad()
-    def _eval_global_per_class_counts(self, model):
-        """One pass over the global test set (or fallback union-of-clients) to get per-class (correct, total)."""
-        K = int(getattr(self.args, "num_classes", 100))
-        cc = np.zeros(K, dtype=np.int64)  # correct per class
-        tt = np.zeros(K, dtype=np.int64)  # total per class
-
-        # Try separate global loader; else fallback to union-of-clients (equivalent micro average)
-        loader = getattr(self, "_global_test_loader", None)
-        if loader is None:
-            try:
-                loader = self._ensure_global_test_loader()
-            except Exception:
-                loader = None
-
-        dev = next(model.parameters()).device
-        was_training = model.training
-        model.eval()
-
-        def _accumulate(x, y):
-            x = x.to(dev, non_blocking=False)
-            y = y.to(dev, non_blocking=False)
-            pred = model(x).argmax(dim=1)
-
-            # CPU numpy arrays
-            y_np      = y.detach().cpu().numpy()
-            correct_m = (pred == y).detach().cpu().numpy().astype(np.bool_)  # bool mask
-
-            # 1) correct per class (integer bincount on masked y)
-            binc_cor = np.bincount(y_np[correct_m], minlength=K)   # int64
-            cc[:K]  += binc_cor[:K]
-
-            # 2) total per class (integer bincount)
-            binc_tot = np.bincount(y_np, minlength=K)              # int64
-            tt[:K]  += binc_tot[:K]
-
-
-        try:
-            if loader is not None:
-                for batch in loader:
-                    x, y = (batch[0], batch[1]) if isinstance(batch, (list, tuple)) else batch
-                    _accumulate(x, y)
-            else:
-                for cli in self.clients:
-                    if hasattr(cli, "task_test_loaders") and isinstance(cli.task_test_loaders, (list, tuple)):
-                        lds = cli.task_test_loaders
-                    elif hasattr(cli, "test_loaders") and isinstance(cli.test_loaders, (list, tuple)):
-                        lds = cli.test_loaders
-                    elif hasattr(cli, "test_loader") and cli.test_loader is not None:
-                        lds = [cli.test_loader]
-                    else:
-                        lds = []
-                    for ld in lds:
-                        for batch in ld:
-                            x, y = (batch[0], batch[1]) if isinstance(batch, (list, tuple)) else batch
-                            _accumulate(x, y)
-        finally:
-            if was_training: model.train()
-
-        return cc, tt
-
-    def _get_or_build_global_counts(self, round_tag: int):
-        """Memoize per-class counts once per round."""
-        c = self._aa_cache
-        if c["round"] != int(round_tag) or c["cc"] is None or c["tt"] is None:
-            cc, tt = self._eval_global_per_class_counts(self.global_model)
-            self._aa_cache = {"round": int(round_tag), "cc": cc, "tt": tt}
-        return self._aa_cache["cc"], self._aa_cache["tt"]
 
     @torch.no_grad()
     def _eval_on_global_test_restricted(self, model, label_set: set[int], upto_task=None):
@@ -266,18 +166,16 @@ class Server(object):
         return int(cc[idx].sum()), int(tt[idx].sum())
 
 
-    def _get_client_task_labels(self, client, task_idx: int) -> List[int]:
-        # same helper as before; reads from client.task_info[task_idx]['assigned_labels'] if available
+    # # ---- Per-client task labels (robust getter) ----
+    def _get_client_task_labels(self, client, task_idx: int):
         for name in ("task_info", "task_meta", "task_label_info"):
-            if hasattr(client, name):
-                d = getattr(client, name)
-                if isinstance(d, dict) and task_idx in d:
-                    info = d[task_idx] or {}
-                    if "assigned_labels" in info: return [int(x) for x in info["assigned_labels"]]
-                    if "labels" in info:          return [int(x) for x in info["labels"]]
-        if hasattr(client, "task_dict"):
-            try: return [int(x) for x in client.task_dict.get(task_idx, [])]
-            except Exception: pass
+            d = getattr(client, name, None)
+            if isinstance(d, dict) and task_idx in d and d[task_idx]:
+                info = d[task_idx]
+                if "assigned_labels" in info: return [int(x) for x in info["assigned_labels"]]
+                if "labels" in info:          return [int(x) for x in info["labels"]]
+        if hasattr(client, "task_dict") and client.task_dict.get(task_idx):
+            return [int(x) for x in client.task_dict[task_idx]]
         return []
 
     def _client_AA_global_upto(self, client, upto_task: int) -> Optional[float]:
@@ -297,6 +195,567 @@ class Server(object):
         if not accs:
             return None
         return 100.0 * float(np.mean(accs))
+
+    def _client_acc_vector_all_tasks_from_counts(self, client, counts_correct: np.ndarray, counts_total: np.ndarray):
+        """
+        Build A^{(c)}_{*,k} at the CURRENT eval point: a length-N_TASKS vector of per-task accuracies
+        for this client, using global per-class (correct,total) counts and the client's task label sets.
+        """
+        vec = []
+        for s in range(self.N_TASKS):
+            labels_s = self._get_client_task_labels(client, s)
+            if not labels_s:
+                vec.append(0.0); continue
+            idx = np.array(labels_s, dtype=np.int64)
+            corr = int(counts_correct[idx].sum())
+            tot  = int(counts_total[idx].sum())
+            vec.append((corr / tot) if tot > 0 else 0.0)
+        return vec
+
+    # ====== NEW EVALUATION CORE (GLOBAL TEST, PER-CLIENT TASK VECTORS) ======
+
+    # ---------- GLOBAL TEST LOADER (if available) ----------
+    def _ensure_global_test_loader(self):
+        """
+        Try to build a single global test DataLoader with GLOBAL labels 0..K-1.
+        If not available (e.g., ImageNet-1K without a prepared loader), return None;
+        the fallback path will iterate the union of client test loaders with remapping.
+        """
+        if getattr(self, "_global_test_loader", None) is not None:
+            return self._global_test_loader
+        try:
+            import torchvision, torchvision.transforms as T
+            from torch.utils.data import DataLoader
+            ds = str(getattr(self.args, "dataset", "")).upper()
+            tfm = T.Compose([T.ToTensor()])
+            if ds == "CIFAR10":
+                testset = torchvision.datasets.CIFAR10(root="dataset", train=False, download=False, transform=tfm)
+                K = 10
+            elif ds == "CIFAR100":
+                testset = torchvision.datasets.CIFAR100(root="dataset", train=False, download=False, transform=tfm)
+                K = 100
+            else:
+                return None
+            bs = int(getattr(self.args, "batch_size", 128) or 128)
+            self._global_test_loader = DataLoader(testset, batch_size=bs, shuffle=False, num_workers=2, pin_memory=False)
+            self._global_test_K = K
+            return self._global_test_loader
+        except Exception:
+            return None
+
+    @torch.no_grad()
+    def _per_class_counts_from_loader(self, model, loader, K: int):
+        """
+        One pass: global labels (0..K-1) -> per-class (correct, total).
+        """
+        import numpy as np, torch
+        dev = next(model.parameters()).device
+        was_training = model.training
+        model.eval()
+        cc = np.zeros(K, dtype=np.int64)
+        tt = np.zeros(K, dtype=np.int64)
+        try:
+            for batch in loader:
+                x, y = (batch[0], batch[1]) if isinstance(batch, (list, tuple)) else batch
+                x = x.to(dev, non_blocking=False)
+                y = y.to(dev, non_blocking=False)
+                pred = model(x).argmax(dim=1)
+                y_np = y.detach().cpu().numpy()
+                m_np = (pred == y).detach().cpu().numpy().astype(bool)
+                cc[:] += np.bincount(y_np[m_np], minlength=K)[:K]
+                tt[:] += np.bincount(y_np,       minlength=K)[:K]
+        finally:
+            if was_training: model.train()
+        return cc, tt
+
+    # ---------- FALLBACK: UNION-OF-CLIENTS WITH REMAP TO GLOBAL ----------
+    def _labels_for_client_task(self, client, task_idx: int):
+        """
+        Robust resolver for GLOBAL class IDs at (client, task_idx).
+        Uses cached meta when available; reconstructs for 'mine' if needed.
+        """
+        # try meta first
+        for name in ("task_info", "task_meta", "task_label_info"):
+            d = getattr(client, name, None)
+            if isinstance(d, dict) and task_idx in d and d[task_idx]:
+                info = d[task_idx]
+                if "assigned_labels" in info: return [int(x) for x in info["assigned_labels"]]
+                if "labels" in info:          return [int(x) for x in info["labels"]]
+        if hasattr(client, "task_dict") and client.task_dict.get(task_idx):
+            return [int(x) for x in client.task_dict[task_idx]]
+
+        # reconstruct for 'mine'
+        if getattr(self.args, "partition_options", "current") == "mine":
+            import numpy as np
+            K   = int(self.args.num_classes)
+            cpt = int(self.args.cpt)
+            T   = (K + cpt - 1) // cpt
+            # global task pool from [0..K-1]
+            Y_sets = [list(range(t*cpt, min((t+1)*cpt, K))) for t in range(T)]
+            # disorder for this client (client 0 = 0)
+            psi_default = float(getattr(self.args, "mine_task_disorder", 0.0))
+            psi_c = 0.0 if client.id == 0 else psi_default
+            # overrides
+            ov = getattr(self.args, "mine_client_disorder", None)
+            if isinstance(ov, str) and ov.strip():
+                try:
+                    vals = [float(x.strip()) for x in ov.strip().replace('[','').replace(']','').split(',') if x.strip()]
+                    if client.id < len(vals):
+                        psi_c = max(0.0, min(1.0, vals[client.id]))
+                except Exception:
+                    pass
+            # adjacent-swap with seed
+            seed = int(getattr(self.args, "mine_seed", 7))
+            r = np.random.default_rng(seed + 997 * client.id)
+            order = list(range(T))
+            if psi_c > 0.0:
+                for i in range(T-1):
+                    if r.random() < psi_c:
+                        order[i], order[i+1] = order[i+1], order[i]
+            labels = Y_sets[order[task_idx]] if 0 <= task_idx < T else []
+            try:
+                if hasattr(client, "task_dict"):
+                    client.task_dict[task_idx] = labels
+            except Exception:
+                pass
+            return labels
+        return []
+
+    @torch.no_grad()
+    def _per_class_counts_from_union_with_remap(self, model):
+        """
+        Iterate client test loaders; if a loader uses task-local labels (0..cpt-1),
+        remap to GLOBAL class IDs using that client's task labels for the loader index.
+        """
+        import numpy as np, torch
+        K = int(getattr(self.args, "num_classes", 100))
+        cc = np.zeros(K, dtype=np.int64)
+        tt = np.zeros(K, dtype=np.int64)
+        dev = next(model.parameters()).device
+        was_training = model.training
+        model.eval()
+        try:
+            for cli in self.clients:
+                # choose available structure
+                if hasattr(cli, "task_test_loaders") and isinstance(cli.task_test_loaders, (list, tuple)):
+                    loaders = list(cli.task_test_loaders)
+                elif hasattr(cli, "test_loaders") and isinstance(cli.test_loaders, (list, tuple)):
+                    loaders = list(cli.test_loaders)
+                elif hasattr(cli, "test_loader") and cli.test_loader is not None:
+                    loaders = [cli.test_loader]
+                else:
+                    loaders = []
+                for s, ld in enumerate(loaders):
+                    gl_labels = self._labels_for_client_task(cli, s)  # global IDs for this task
+                    gl_arr = np.array(gl_labels, dtype=np.int64) if len(gl_labels) else None
+                    for batch in ld:
+                        x, y = (batch[0], batch[1]) if isinstance(batch, (list, tuple)) else batch
+                        x = x.to(dev, non_blocking=False)
+                        y = y.to(dev, non_blocking=False)
+                        pred = model(x).argmax(dim=1)
+
+                        y_local = y.detach().cpu().numpy()
+                        if gl_arr is not None and gl_arr.size > 0:
+                            y_local = np.clip(y_local, 0, gl_arr.size-1)
+                            y_np = gl_arr[y_local]   # remapped to global IDs
+                        else:
+                            y_np = y_local           # best effort
+
+                        p_np = pred.detach().cpu().numpy()
+                        m_np = (p_np == y_np)
+                        cc[:] += np.bincount(y_np[m_np], minlength=K)[:K]
+                        tt[:] += np.bincount(y_np,       minlength=K)[:K]
+        finally:
+            if was_training: model.train()
+        return cc, tt
+
+    @torch.no_grad()
+    def _compute_global_per_class_counts(self, model):
+        """
+        Build per-class (correct,total) counts on the GLOBAL test set.
+        Prefer a clean global test loader (labels 0..K-1); if unavailable,
+        fall back to the union of clients' test loaders and remap task-local labels.
+        Returns (cc, tt, K).
+        """
+        import numpy as np, torch
+
+        K = int(getattr(self.args, "num_classes", 100))
+        cc = np.zeros(K, dtype=np.int64)
+        tt = np.zeros(K, dtype=np.int64)
+
+        # --- try a single global test loader if you have one
+        loader = getattr(self, "_global_test_loader", None)
+        if loader is None:
+            try: loader = self._ensure_global_test_loader()
+            except Exception: loader = None
+
+        dev = next(model.parameters()).device
+        was_training = model.training
+        model.eval()
+
+        def _accumulate_global(x, y):
+            x = x.to(dev, non_blocking=False)
+            y = y.to(dev, non_blocking=False)
+            pred = model(x).argmax(dim=1)
+            y_np = y.detach().cpu().numpy()
+            m_np = (pred == y).detach().cpu().numpy().astype(bool)
+            cc[:] += np.bincount(y_np[m_np], minlength=K)[:K]
+            tt[:] += np.bincount(y_np,       minlength=K)[:K]
+
+        def _accumulate_with_remap(x, y, gl_labels):
+            # gl_labels: list of GLOBAL class IDs for this task (order matches local labels 0..len-1)
+            import numpy as np
+            x = x.to(dev, non_blocking=False)
+            y = y.to(dev, non_blocking=False)
+            pred = model(x).argmax(dim=1)
+
+            y_local = y.detach().cpu().numpy()
+            if gl_labels and len(gl_labels) > 0:
+                gl = np.array(gl_labels, dtype=np.int64)
+                y_local = np.clip(y_local, 0, gl.size - 1)
+                y_np = gl[y_local]
+            else:
+                y_np = y_local  # best effort
+
+            p_np = pred.detach().cpu().numpy()
+            m_np = (p_np == y_np)
+            cc[:] += np.bincount(y_np[m_np], minlength=K)[:K]
+            tt[:] += np.bincount(y_np,       minlength=K)[:K]
+
+        try:
+            if loader is not None:
+                # Path A: true global test loader with global labels 0..K-1
+                for batch in loader:
+                    x, y = (batch[0], batch[1]) if isinstance(batch, (list, tuple)) else batch
+                    _accumulate_global(x, y)
+            else:
+                # Path B: union of clients (remap task-local -> global)
+                Y_sets = self._global_task_pool_labels()  # use global pool for mapping by task index
+                for cli in self.clients:
+                    # pick structure
+                    if hasattr(cli, "task_test_loaders") and isinstance(cli.task_test_loaders, (list, tuple)):
+                        loaders = list(cli.task_test_loaders)
+                    elif hasattr(cli, "test_loaders") and isinstance(cli.test_loaders, (list, tuple)):
+                        loaders = list(cli.test_loaders)
+                    elif hasattr(cli, "test_loader") and cli.test_loader is not None:
+                        loaders = [cli.test_loader]
+                    else:
+                        loaders = []
+                    for s, ld in enumerate(loaders):
+                        gl_labels = Y_sets[s] if s < len(Y_sets) else []  # map local 0.. -> global IDs
+                        for batch in ld:
+                            x, y = (batch[0], batch[1]) if isinstance(batch, (list, tuple)) else batch
+                            _accumulate_with_remap(x, y, gl_labels)
+        finally:
+            if was_training: model.train()
+
+        return cc, tt, K
+    
+    def _global_task_accuracy_vector_from_counts(self, cc, tt):
+        """
+        From per-class counts, compute [A_{*,k}] for k=0..T-1 where each
+        A_{*,k} = (sum_{y in Y_k} cc[y]) / (sum_{y in Y_k} tt[y]),
+        and {Y_k} is the GLOBAL task pool.
+        Returns a list of floats in [0,1].
+        """
+        import numpy as np
+        Y_sets = self._global_task_pool_labels()
+        vec = []
+        for k, Yk in enumerate(Y_sets):
+            if not Yk:
+                vec.append(0.0); continue
+            idx = np.array(Yk, dtype=np.int64)
+            corr = int(cc[idx].sum())
+            tot  = int(tt[idx].sum())
+            vec.append((corr / tot) if tot > 0 else 0.0)
+        return vec
+
+
+
+    # ---------- BACK-COMPAT SHIM (what your code is still calling) ----------
+    def _get_or_build_global_counts(self, round_tag: int):
+        """
+        Back-compat shim so old call sites keep working.
+        Caches per-class counts for the given 'round_tag' and returns (cc, tt).
+        """
+        c = self._aa_cache
+        if c["round"] != int(round_tag) or c["cc"] is None or c["tt"] is None:
+            cc, tt, K = self._compute_global_per_class_counts(self.global_model)
+            self._aa_cache = {"round": int(round_tag), "cc": cc, "tt": tt, "K": K}
+        return self._aa_cache["cc"], self._aa_cache["tt"]
+
+
+    def _labels_for_client_task(self, client, task_idx: int):
+        """
+        Robust resolver: return GLOBAL class IDs for (client, task_idx).
+        Works for both 'current' and 'mine'. For 'mine' we reconstruct the task
+        order from CLI knobs if not yet cached in client.task_dict.
+        """
+        # 1) Try client-side metadata first
+        for name in ("task_info", "task_meta", "task_label_info"):
+            d = getattr(client, name, None)
+            if isinstance(d, dict) and task_idx in d and d[task_idx]:
+                info = d[task_idx]
+                if "assigned_labels" in info: return [int(x) for x in info["assigned_labels"]]
+                if "labels" in info:          return [int(x) for x in info["labels"]]
+        if hasattr(client, "task_dict") and client.task_dict.get(task_idx):
+            return [int(x) for x in client.task_dict[task_idx]]
+
+        # 2) Reconstruct for 'mine'
+        if getattr(self.args, "partition_options", "current") == "mine":
+            import numpy as np
+            K   = int(self.args.num_classes)
+            cpt = int(self.args.cpt)
+            T   = (K + cpt - 1) // cpt
+
+            # global task pool from master order [0..K-1], chunked by cpt
+            Y_sets = [list(range(t*cpt, min((t+1)*cpt, K))) for t in range(T)]
+
+            # disorder for this client (client 0 fixed to 0)
+            psi_default = float(getattr(self.args, "mine_task_disorder", 0.0))
+            psi_c = 0.0 if client.id == 0 else psi_default
+
+            # optional overrides
+            ov = getattr(self.args, "mine_client_disorder", None)
+            if isinstance(ov, str) and ov.strip():
+                s = ov.strip().replace('[','').replace(']','')
+                try:
+                    vals = [float(x.strip()) for x in s.split(',') if x.strip()!='']
+                    if client.id < len(vals):
+                        v = vals[client.id]
+                        psi_c = max(0.0, min(1.0, v))
+                except Exception:
+                    pass
+
+            # adjacent-swap permutation with seed
+            seed = int(getattr(self.args, "mine_seed", 7))
+            r = np.random.default_rng(seed + 997 * client.id)
+            order = list(range(T))
+            if psi_c > 0.0:
+                for i in range(T-1):
+                    if r.random() < psi_c:
+                        order[i], order[i+1] = order[i+1], order[i]
+
+            if 0 <= task_idx < T:
+                labels = Y_sets[order[task_idx]]
+            else:
+                labels = []
+
+            # cache back for later
+            try:
+                if hasattr(client, "task_dict"):
+                    client.task_dict[task_idx] = labels
+            except Exception:
+                pass
+            return labels
+
+        # 3) Otherwise, unknown
+        return []
+
+
+    def _ensure_global_test_loader(self):
+        """
+        Build a SINGLE global test DataLoader with GLOBAL labels (0..K-1).
+        Prefers torchvision test split; if unavailable, returns None and the caller
+        should use the fallback that remaps union-of-clients loaders.
+        """
+        if getattr(self, "_global_test_loader", None) is not None:
+            return self._global_test_loader
+
+        try:
+            import torchvision
+            import torchvision.transforms as T
+            from torch.utils.data import DataLoader
+
+            ds = str(getattr(self.args, "dataset", "")).upper()
+            tfm = T.Compose([T.ToTensor()])  # keep simple; eval-time
+            if ds == "CIFAR10":
+                testset = torchvision.datasets.CIFAR10(root="dataset", train=False, download=False, transform=tfm)
+                K = 10
+            elif ds == "CIFAR100":
+                testset = torchvision.datasets.CIFAR100(root="dataset", train=False, download=False, transform=tfm)
+                K = 100
+            else:
+                return None  # Not implemented here (e.g., ImageNet-1K); fallback path will handle.
+
+            bs = int(getattr(self.args, "batch_size", 128) or 128)
+            self._global_test_loader = DataLoader(testset, batch_size=bs, shuffle=False, num_workers=2, pin_memory=False)
+            self._global_test_K = K
+            return self._global_test_loader
+        except Exception:
+            return None
+
+
+    @torch.no_grad()
+    def _per_class_counts_from_loader(self, model, loader, K: int):
+        """
+        Generic per-class (correct,total) counts on a loader that yields GLOBAL labels 0..K-1.
+        """
+        import numpy as np
+        import torch
+
+        dev = next(model.parameters()).device
+        was_training = model.training
+        model.eval()
+
+        cc = np.zeros(K, dtype=np.int64)
+        tt = np.zeros(K, dtype=np.int64)
+
+        try:
+            for batch in loader:
+                x, y = (batch[0], batch[1]) if isinstance(batch, (list, tuple)) else batch
+                x = x.to(dev, non_blocking=False)
+                y = y.to(dev, non_blocking=False)
+                pred = model(x).argmax(dim=1)
+
+                y_np = y.detach().cpu().numpy()
+                m_np = (pred == y).detach().cpu().numpy().astype(np.bool_)  # bool
+                cc[:] += np.bincount(y_np[m_np], minlength=K)[:K]
+                tt[:] += np.bincount(y_np,       minlength=K)[:K]
+        finally:
+            if was_training:
+                model.train()
+        return cc, tt
+
+
+    @torch.no_grad()
+    def _per_class_counts_from_union_with_remap(self, model):
+        """
+        Fallback: iterate each client's test loaders. If a loader uses TASK-LOCAL labels (0..cpt-1),
+        remap them to GLOBAL class IDs using the client’s task labels for that loader index.
+        """
+        import numpy as np
+        import torch
+
+        K = int(getattr(self.args, "num_classes", 100))
+        cc = np.zeros(K, dtype=np.int64)
+        tt = np.zeros(K, dtype=np.int64)
+
+        dev = next(model.parameters()).device
+        was_training = model.training
+        model.eval()
+
+        def _accumulate_with_gl_map(x, y, gl_labels):
+            # gl_labels : list of global class IDs, in the same order as local labels 0..len-1
+            x = x.to(dev, non_blocking=False)
+            y = y.to(dev, non_blocking=False)
+            pred = model(x).argmax(dim=1)
+
+            y_local = y.detach().cpu().numpy()
+            # map local -> global safely
+            if len(gl_labels) > 0:
+                gl = np.array(gl_labels, dtype=np.int64)
+                y_local = np.clip(y_local, 0, gl.size - 1)
+                y_np = gl[y_local]  # global ids
+            else:
+                y_np = y_local  # best effort, assume global already
+
+            p_np = pred.detach().cpu().numpy()
+            m_np = (p_np == y_np)
+            cc[:] += np.bincount(y_np[m_np], minlength=K)[:K]
+            tt[:] += np.bincount(y_np,       minlength=K)[:K]
+
+        try:
+            # Iterate per client, per task loader
+            for cli in self.clients:
+                # choose the available structure
+                if hasattr(cli, "task_test_loaders") and isinstance(cli.task_test_loaders, (list, tuple)):
+                    loaders = list(cli.task_test_loaders)
+                elif hasattr(cli, "test_loaders") and isinstance(cli.test_loaders, (list, tuple)):
+                    loaders = list(cli.test_loaders)
+                elif hasattr(cli, "test_loader") and cli.test_loader is not None:
+                    loaders = [cli.test_loader]
+                else:
+                    loaders = []
+
+                for s, ld in enumerate(loaders):
+                    # labels for this client's task 's' in GLOBAL id space
+                    gl_labels = self._labels_for_client_task(cli, s)
+
+                    for batch in ld:
+                        x, y = (batch[0], batch[1]) if isinstance(batch, (list, tuple)) else batch
+                        _accumulate_with_gl_map(x, y, gl_labels)
+        finally:
+            if was_training:
+                model.train()
+
+        return cc, tt
+
+
+    def _compute_global_per_class_counts(self, model):
+        """
+        One entry-point: try a clean global test loader (global labels). If unavailable,
+        fall back to union-of-clients + remap to GLOBAL labels. Returns (cc, tt, K).
+        """
+        loader = self._ensure_global_test_loader()
+        if loader is not None:
+            K = int(getattr(self, "_global_test_K", getattr(self.args, "num_classes", 100)))
+            cc, tt = self._per_class_counts_from_loader(model, loader, K)
+            return cc, tt, K
+        else:
+            cc, tt = self._per_class_counts_from_union_with_remap(model)
+            K = int(getattr(self.args, "num_classes", 100))
+            return cc, tt, K
+
+
+    def compute_client_task_vectors(self, model):
+        """
+        Returns: dict cid -> list[N_TASKS] with plain accuracy per task (fraction in [0,1]),
+        using the CURRENT 'model' and a GLOBAL test set (or remapped union).
+        """
+        import numpy as np
+        cc, tt, K = self._compute_global_per_class_counts(model)
+
+        T = int(self.N_TASKS)
+        out = {}
+        for cli in self.clients:
+            vec = []
+            for k in range(T):
+                labels = self._labels_for_client_task(cli, k)
+                if not labels:
+                    vec.append(0.0); continue
+                idx = np.array(labels, dtype=np.int64)
+                corr = int(cc[idx].sum())
+                tot  = int(tt[idx].sum())
+                vec.append((corr / tot) if tot > 0 else 0.0)
+            out[cli.id] = vec
+        return out
+
+
+    def dump_global_task_accuracy_csv(self, after_task: int, glob_iter: int):
+        """
+        Compute the GLOBAL per-task accuracy vector (current global model) and
+        write it into each client's CSV (for convenience), and into a single
+        long-format file. Values in [0,1], not %.
+        """
+        import os, csv
+        acc_vec = self._global_task_accuracy_vector_from_counts(*self._compute_global_per_class_counts(self.global_model)[:2])
+
+        T = len(acc_vec)
+        # Global long file
+        global_dir = os.path.join(self.save_folder, "Global")
+        os.makedirs(global_dir, exist_ok=True)
+        long_csv = os.path.join(global_dir, "global_task_acc_long.csv")
+        need_header_long = not os.path.exists(long_csv)
+        with open(long_csv, "a", newline="") as f_long:
+            w_long = csv.writer(f_long)
+            if need_header_long:
+                w_long.writerow(["after_task", "step", "eval_task", "acc"])  # global per-task
+            for k, a in enumerate(acc_vec):
+                w_long.writerow([int(after_task), int(glob_iter), int(k), f"{float(a):.6f}"])
+
+        # Per-client wide (same vector for each client, since same global model)
+        for cli in self.clients:
+            cdir = os.path.join(self.save_folder, "Client_Global", f"Client_{cli.id}")
+            os.makedirs(cdir, exist_ok=True)
+            wide_csv = os.path.join(cdir, "per_task_acc.csv")
+            need_header_wide = not os.path.exists(wide_csv)
+            import csv
+            with open(wide_csv, "a", newline="") as f_wide:
+                w = csv.writer(f_wide)
+                if need_header_wide:
+                    w.writerow(["after_task", "step"] + [f"task_{k}" for k in range(T)])
+                w.writerow([int(after_task), int(glob_iter)] + [f"{float(a):.6f}" for a in acc_vec])
 
 
     def set_clients(self, clientObj):
@@ -429,10 +888,26 @@ class Server(object):
         
         num_samples = []
         tot_correct = []
+
+        # tag this round; any monotonically increasing counter works
+        self._round_tag = glob_iter  # or use your own global round index
+
+        # 1) Build per-class counts once this round
+        cc, tt = self._get_or_build_global_counts(self._round_tag)
+
+        per_client_forgetting = {}
+
         for c in self.clients:
             ct, ns = c.test_metrics(task=task)
             tot_correct.append(ct*1.0)
             num_samples.append(ns)
+
+            acc_vec = self._client_acc_vector_all_tasks_from_counts(c, cc, tt)   # [A_k] for this eval point
+            self.client_accuracy_matrix.setdefault(c.id, []).append(acc_vec)     # append time row
+
+            # average forgetting up to current task index
+            cf = metric_average_forgetting(int(task % self.N_TASKS), self.client_accuracy_matrix[c.id])
+            per_client_forgetting[c.id] = float(cf)  # keep as fraction
 
             test_acc = sum(tot_correct)*1.0 / sum(num_samples)
     
@@ -444,14 +919,15 @@ class Server(object):
                     subdir = os.path.join(self.save_folder, f"Client_Local/Client_{c.id}")
                     log_key = f"Client_Local/Client_{c.id}/Averaged Test Accurancy"
 
+                aa_pct = self._client_AA_global_upto(c, upto_task=task)
+
                 # if self.args.wandb:
                 #     wandb.log({log_key: test_acc}, step=glob_iter)
 
                 if self.args.wandb:
-                    for cli in self.clients:
-                        aa_pct = self._client_AA_global_upto(cli, upto_task=task)
-                        if aa_pct is not None:
-                            wandb.log({f"Client_Global/Client_{cli.id}/AA_upto_t_global": aa_pct}, step=glob_iter)
+                    if aa_pct is not None:
+                        wandb.log({f"Client_Global/Client_{c.id}/AA_upto_t_global": aa_pct}, step=glob_iter)
+                        wandb.log({f"Client_Global/Client_{c.id}/Average Forgetting (so-far)": 100.0 * cf}, step=glob_iter)
                 
                 if self.offlog:
                     os.makedirs(subdir, exist_ok=True)
