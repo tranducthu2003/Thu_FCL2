@@ -227,31 +227,6 @@ class FedAvg(Server):
                     except Exception as e:
                         ret = {"error": str(e)}
 
-                    # # extract metrics from return or client attributes
-                    # loss = None
-                    # acc = None
-                    # if isinstance(ret, dict):
-                    #     loss = ret.get("loss", ret.get("train_loss"))
-                    #     acc  = ret.get("acc",  ret.get("accuracy"))
-                    # if loss is None:
-                    #     loss = getattr(client, "last_train_loss", getattr(client, "train_loss", None))
-                    # if acc is None:
-                    #     acc = getattr(client, "last_train_acc", getattr(client, "train_acc", None))
-                    #     # normalize to %
-                    #     if isinstance(acc, float) and acc <= 1.0:
-                    #         acc = acc * 100.0
-
-                    # # if still missing, quickly measure on current train loader (few batches)
-                    # if loss is None or acc is None:
-                    #     loader = _get_current_train_loader(client, task)
-                    #     try:
-                    #         device = _get_device_of(client.model)
-                    #         m_loss, m_acc = _quick_eval_loss_acc(client.model, loader, device, max_batches=10)
-                    #     except Exception:
-                    #         m_loss, m_acc = None, None
-                    #     if loss is None: loss = m_loss
-                    #     if acc  is None: acc  = m_acc
-
                     # compute delta L2 of local update
                     delta_l2 = None
                     try:

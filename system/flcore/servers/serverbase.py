@@ -48,7 +48,7 @@ class Server(object):
         self._aa_cache = {"round": -1, "cc": None, "tt": None}  # per-class counts cache
         self._round_tag = -1  # set this each round in train()
 
-        self.save_folder = f"{args.out_folder}/{args.dataset}_{args.algorithm}_{args.model_str}_{args.optimizer}_round{args.global_rounds}_localep{args.local_epochs}_lr{args.local_learning_rate}_part{args.partition_options}_cpt{args.cpt}_alpha{args.alpha}_disorder{args.task_disorder}_ddmmyy{datetime.now().strftime('%d%m%y_%H%M%S')}_time{time.time()}"
+        self.save_folder = f"{args.out_folder}/{args.dataset}_{args.algorithm}_{args.model_str}_{args.optimizer}_round{args.global_rounds}_localep{args.local_epochs}_lr{args.local_learning_rate}_nclient{args.num_clients}_part{args.partition_options}_cpt{args.cpt}_alpha{args.alpha}_disorder{args.task_disorder}_ddmmyy{datetime.now().strftime('%d%m%y_%H%M%S')}_time{time.time()}"
         if self.offlog:    
             if os.path.exists(self.save_folder):
                 shutil.rmtree(self.save_folder)

@@ -79,6 +79,8 @@ class clientTARGET(Client):
         return loss_s.item()
             
     def get_syn_data_loader(self):
+        if self.args.dataset =="CIFAR10":
+            dataset_size = 50000
         if self.args.dataset =="CIFAR100":
            dataset_size = 50000
         elif self.args.dataset == "IMAGENET1k":

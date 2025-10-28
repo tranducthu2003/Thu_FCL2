@@ -15,8 +15,8 @@
           ],
           "missing_labels": [],
           "counts": {
-            "0": 988,
-            "1": 38
+            "0": 606,
+            "1": 589
           },
           "task_index_in_master": null
         }
@@ -35,8 +35,8 @@
           ],
           "missing_labels": [],
           "counts": {
-            "0": 960,
-            "1": 4
+            "0": 633,
+            "1": 561
           },
           "task_index_in_master": null
         }
@@ -46,17 +46,17 @@
       "tasks": {
         "0": {
           "present_labels": [
-            4,
-            5
+            0,
+            1
           ],
           "assigned_labels": [
-            4,
-            5
+            0,
+            1
           ],
           "missing_labels": [],
           "counts": {
-            "4": 980,
-            "5": 870
+            "0": 480,
+            "1": 791
           },
           "task_index_in_master": null
         }
@@ -75,8 +75,8 @@
           ],
           "missing_labels": [],
           "counts": {
-            "0": 115,
-            "1": 83
+            "0": 595,
+            "1": 598
           },
           "task_index_in_master": null
         }
@@ -86,17 +86,17 @@
       "tasks": {
         "0": {
           "present_labels": [
-            8,
-            9
+            0,
+            1
           ],
           "assigned_labels": [
-            8,
-            9
+            0,
+            1
           ],
           "missing_labels": [],
           "counts": {
-            "8": 35,
-            "9": 590
+            "0": 587,
+            "1": 599
           },
           "task_index_in_master": null
         }
@@ -106,17 +106,17 @@
       "tasks": {
         "0": {
           "present_labels": [
-            2,
-            3
+            0,
+            1
           ],
           "assigned_labels": [
-            2,
-            3
+            0,
+            1
           ],
           "missing_labels": [],
           "counts": {
-            "2": 597,
-            "3": 1929
+            "0": 641,
+            "1": 567
           },
           "task_index_in_master": null
         }
@@ -126,17 +126,17 @@
       "tasks": {
         "0": {
           "present_labels": [
-            2,
-            3
+            0,
+            1
           ],
           "assigned_labels": [
-            2,
-            3
+            0,
+            1
           ],
           "missing_labels": [],
           "counts": {
-            "2": 579,
-            "3": 653
+            "0": 591,
+            "1": 621
           },
           "task_index_in_master": null
         }
@@ -146,17 +146,17 @@
       "tasks": {
         "0": {
           "present_labels": [
-            2,
-            3
+            0,
+            1
           ],
           "assigned_labels": [
-            2,
-            3
+            0,
+            1
           ],
           "missing_labels": [],
           "counts": {
-            "2": 1284,
-            "3": 1047
+            "0": 616,
+            "1": 494
           },
           "task_index_in_master": null
         }
@@ -166,17 +166,17 @@
       "tasks": {
         "0": {
           "present_labels": [
-            4,
-            5
+            0,
+            1
           ],
           "assigned_labels": [
-            4,
-            5
+            0,
+            1
           ],
           "missing_labels": [],
           "counts": {
-            "4": 32,
-            "5": 387
+            "0": 610,
+            "1": 525
           },
           "task_index_in_master": null
         }
@@ -186,17 +186,17 @@
       "tasks": {
         "0": {
           "present_labels": [
-            4,
-            5
+            0,
+            1
           ],
           "assigned_labels": [
-            4,
-            5
+            0,
+            1
           ],
           "missing_labels": [],
           "counts": {
-            "4": 430,
-            "5": 399
+            "0": 641,
+            "1": 655
           },
           "task_index_in_master": null
         }

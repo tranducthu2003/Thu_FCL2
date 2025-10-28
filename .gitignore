@@ -7,6 +7,8 @@ dataset/synthetic_data
 dataset/imagenet_resize
 dataset/cifar-10-batches-py
 dataset/cifar-10-python.tar.gz
+dataset/dataset/
+datalist/
 figures/
 results/
 wandb
