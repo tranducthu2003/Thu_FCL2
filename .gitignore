@@ -10,7 +10,6 @@ dataset/cifar-10-python.tar.gz
 dataset/dataset/
 datalist/
 figures/
-results/
 wandb
 test.py
 output_fedweit
