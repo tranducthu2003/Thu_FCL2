@@ -20,6 +20,7 @@ from flcore.servers.serverweit import FedWeIT
 from flcore.servers.serveraffcl import FedAFFCL
 from flcore.servers.servertarget import FedTARGET
 from flcore.servers.serverl2p import FedL2P
+from flcore.servers.serverPILORA import PILORA
 
 from flcore.servers.serverLANDER import LANDERServer
 from flcore.servers.serverGLFC import GLFCServer
@@ -35,6 +36,8 @@ from flcore.trainmodel.alexnet import *
 from flcore.trainmodel.mobilenet_v2 import *
 from flcore.trainmodel.transformer import *
 from flcore.trainmodel.vit_prompt_l2p import *
+from flcore.trainmodel.PILORA.VLT import *
+from flcore.trainmodel.PILORA.VITLORA import vitlora
 
 warnings.simplefilter("ignore")
 torch.manual_seed(0)
@@ -102,8 +105,13 @@ def run(args):
                 n_prompts=args.n_prompts,
                 prompt_length=args.prompt_length,
                 prompt_pool=args.prompt_pool,
-                pool_size=args.pool_size,
-            ).to(args.device)
+                pool_size=args.pool_size).to(args.device)
+        elif model_str == "VLT":
+            args.model = VLT(modelname='vit_base_patch16_224_dino',
+                num_classes=args.num_classes,
+                pretrained=False,
+                r = 4,
+                lora_layer = [0]).to(args.device)
         else:
             raise NotImplementedError
 
@@ -158,15 +166,19 @@ def run(args):
             server = FedTARGET(args, i)
 
         elif args.algorithm == "FedL2P":
-            args.head = copy.deepcopy(args.model.fc)
-            args.model.fc = nn.Identity()
-            args.model = BaseHeadSplit(args.model, args.head)
+            # args.head = copy.deepcopy(args.model.fc)
+            # args.model.fc = nn.Identity()
+            # args.model = BaseHeadSplit(args.model, args.head)
             server = FedL2P(args, i)
 
         elif args.algorithm == "GLFC":
             server = GLFCServer(args, i)
         elif args.algorithm == "LANDER":
             server = LANDERServer(args, i)
+
+        elif args.algorithm == "PILORA":
+            server = PILORA(args, i)
+
         else:
             raise NotImplementedError
 

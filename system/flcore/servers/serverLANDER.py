@@ -3,7 +3,7 @@ import copy
 import torch
 from flcore.servers.serverbase import Server
 from flcore.clients.clientLANDER import clientLANDER
-from flcore.utils_core.text_encoder import get_text_anchors
+# from flcore.utils.text_encoder import get_text_anchors
 
 class LANDERServer(Server):
     """

@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader, ConcatDataset
 from flcore.clients.clientbase import Client
 from flcore.criterion.distillation import kl_divergence_with_temperature as kd_kl
 from flcore.criterion.lander_losses import bounding_loss
-from flcore.utils_core.text_encoder import get_text_anchors
+# from flcore.utils.text_encoder import get_text_anchors
 
 class clientLANDER(Client):
     """

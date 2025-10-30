@@ -84,7 +84,16 @@ def read_client_data_FCL_cifar100(index, task = 0, classes_per_task = 2, count_l
         x, y = load_data(datadir, class_order[task*classes_per_task:(task+1)*classes_per_task], train_images_per_class=500, test_images_per_class=100, train=False)
     x = x.type(torch.FloatTensor)
     y = torch.Tensor(y.type(torch.long))
+
+    # resize ảnh về 224x224
+    transform_224 = transforms.Compose([
+    transforms.ToPILImage(),      # thêm dòng này để convert Tensor → PIL
+    transforms.Resize((224, 224)),
+    transforms.ToTensor()
+    ])
+
     data = Transform_dataset(x, y)
+    # data = Transform_dataset(x, y, transform=transform_224)
 
     if count_labels:
         label_info = {}
