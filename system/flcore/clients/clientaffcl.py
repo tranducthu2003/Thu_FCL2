@@ -63,7 +63,7 @@ class ClientAFFCL(Client):
                     self.model.flow.train()
                     # print("Classifier device:", next(self.model.classifier.parameters()).device)
                     # print("Flow device:", next(self.model.flow.parameters()).device)
-                    # self.model.flow.to(self.device)
+                    self.model.flow.to(self.device)
                     flow_result = self.model.train_a_batch(
                         x, y, train_flow=True, flow=None, last_flow=last_flow,
                         last_classifier = last_classifier,

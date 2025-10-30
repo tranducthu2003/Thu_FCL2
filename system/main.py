@@ -98,7 +98,7 @@ def run(args):
         elif model_str == "Swin_t":
             args.model = torchvision.models.swin_t(weights=None, num_classes=args.num_classes).to(args.device)
         elif model_str == "AFFCLModel":    
-            args.model = AFFCLModel(args)
+            args.model = AFFCLModel(args).to(args.device)
         elif model_str == "VitL2P":
             args.model = VitL2P(
                 num_classes=args.num_classes,
