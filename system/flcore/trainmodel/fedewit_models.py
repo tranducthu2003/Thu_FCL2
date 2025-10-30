@@ -406,14 +406,14 @@ class NetModule:
 
         mem_before = self.get_memory_usage_mb()
         for tid in range(int(self.args.num_classes/self.args.cpt)):  # bug, sửa sau
-            print(f"tid={tid}")
+            # print(f"tid={tid}")
             t0 = time.time()
             for lid in range(len(self.shapes)):
                 var_types = ['adaptive', 'bias', 'mask'] if self.args.model == 'apd' else ['adaptive', 'bias', 'mask', 'atten', 'from_kb']
                 for var_type in var_types:
                     self.create_variable(var_type, lid, tid)
             mem_after = self.get_memory_usage_mb()
-            print(f"  RAM used: {mem_after - mem_before:.2f} MB (+{mem_after:.2f} total)")
+            # print(f"  RAM used: {mem_after - mem_before:.2f} MB (+{mem_after:.2f} total)")
             mem_before = mem_after
 
     # def create_variable(self, var_type, lid, tid=None):

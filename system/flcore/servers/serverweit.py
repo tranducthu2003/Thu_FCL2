@@ -44,8 +44,8 @@ class FedWeIT(Server):
         super().__init__(args, times)
 
         # Original FedWeIT init
-        args.log_dir   = os.path.join(args.output_path, f'logs/{args.model}-{args.dataset}')
-        args.state_dir = os.path.join(args.output_path, f'states/{args.model}-{args.dataset}')
+        args.log_dir   = os.path.join(args.output_path, f'logs/{args.dataset}')
+        args.state_dir = os.path.join(args.output_path, f'states/{args.dataset}')
         self.Budget: List[float] = []
         self.client_adapts: List[Any] = []
         self.logger = Logger(self.args)
