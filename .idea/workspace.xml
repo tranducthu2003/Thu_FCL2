@@ -5,7 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="99ce310d-b914-4464-8807-136f6ae09a0b" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/FCL.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/FCL.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/draw/pca/PCA_Representations.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/draw/pca/PCA_Representations.ipynb" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/system/flcore/utils_core/protonet_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/system/flcore/utils_core/protonet_utils.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -44,7 +47,7 @@
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;PFLlib-based&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/home/skydvn/Documents/git/ContinualLearning/FCL&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/skydvn/Documents/git/Fewshot/ToyImageMatching&quot;,
     &quot;run.code.analysis.last.selected.profile&quot;: &quot;aDefault&quot;,
     &quot;settings.editor.selected.configurable&quot;: &quot;editor.preferences.fonts.default&quot;
   }
@@ -81,7 +84,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-python-sdk-dfff61a61320-9cdd278e9d02-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-251.25410.159" />
+        <option value="bundled-python-sdk-f69e5c277ee4-cbfc7b97e6b2-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-252.27397.106" />
       </set>
     </attachedChunks>
   </component>
