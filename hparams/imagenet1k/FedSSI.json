@@ -27,6 +27,8 @@
     "num_tasks": 2500,
 
     "client_drop_rate": 0.0,
-    "time_threthold": 10000
+    "time_threthold": 10000,
 
+    "lambda_q": 0.1,
+    "alpha": 0.1
 }

@@ -24,6 +24,7 @@ class FedSSI(Server):
 
         # self.load_model()
         self.Budget = []
+        self.prev_task_model = self.global_model
 
     def train(self):
 
@@ -31,7 +32,7 @@ class FedSSI(Server):
             raise ValueError("Set num_task again")
 
         for task in range(self.args.num_tasks):
-
+            self.prev_task_model = self.global_model # TODO begin of every task
             print(f"\n================ Current Task: {task} =================")
             if task == 0:
                 # update labels info. for the first task
@@ -99,7 +100,7 @@ class FedSSI(Server):
                     self.eval(task=task, glob_iter=glob_iter, flag="global")
 
                 for client in self.selected_clients:
-                    client.train(task=task)
+                    client.train(task=task, prev_global_model=self.prev_task_model)
 
                 # threads = [Thread(target=client.train)
                 #            for client in self.selected_clients]
@@ -108,15 +109,7 @@ class FedSSI(Server):
 
                 self.receive_models()
                 self.receive_grads()
-                model_origin = copy.deepcopy(self.global_model)
                 self.aggregate_parameters()
-
-                if self.args.seval:
-                    self.spatio_grad_eval(model_origin=model_origin)
-
-                if self.args.pca_eval:
-                    self.proto_eval(global_model=self.global_model,
-                                    local_model=self.uploaded_models[0], task=task, round=i)
 
                 if i % self.eval_gap == 0:
                     self.eval(task=task, glob_iter=glob_iter, flag="local")
