@@ -186,25 +186,7 @@ class Client(object):
     def load_train_data(self, task, batch_size=None):
         if batch_size == None:
             batch_size = self.batch_size
-            def _initialize_first_task(self):
-        """Initialize labels information for the first task"""
-        available_labels = set()
-        available_labels_current = set()
-        available_labels_past = set()
 
-        for client in self.clients:
-            available_labels.update(client.classes_so_far)
-            available_labels_current.update(client.current_labels)
-
-        for client in self.clients:
-            client.available_labels = sorted(list(available_labels))
-            client.available_labels_current = sorted(list(available_labels_current))
-            client.available_labels_past = sorted(list(available_labels_past))
-            # Initialize PIM for each client
-            client.initialize_pim(self.global_model)
-
-        print(f"Task 0 - Total labels: {len(available_labels)}, "
-              f"Current: {len(available_labels_current)}, Past: {len(available_labels_past)}")
         if self.args.dataset == 'IMAGENET1k':
             train_data = read_client_data_FCL_imagenet1k(self.id, task=task, classes_per_task=self.args.cpt, count_labels=False, train=True)
         elif self.args.dataset == 'CIFAR100':
@@ -237,25 +219,7 @@ class Client(object):
             # target_param.grad = param.grad.clone()
 
     def update_parameters(self, model, new_params):
-        for param, new_param in zip(model.parameters(), new_params):    def _initialize_first_task(self):
-        """Initialize labels information for the first task"""
-        available_labels = set()
-        available_labels_current = set()
-        available_labels_past = set()
-
-        for client in self.clients:
-            available_labels.update(client.classes_so_far)
-            available_labels_current.update(client.current_labels)
-
-        for client in self.clients:
-            client.available_labels = sorted(list(available_labels))
-            client.available_labels_current = sorted(list(available_labels_current))
-            client.available_labels_past = sorted(list(available_labels_past))
-            # Initialize PIM for each client
-            client.initialize_pim(self.global_model)
-
-        print(f"Task 0 - Total labels: {len(available_labels)}, "
-              f"Current: {len(available_labels_current)}, Past: {len(available_labels_past)}")
+        for param, new_param in zip(model.parameters(), new_params):    
             param.data = new_param.data.clone()
 
     def test_metrics(self, task):
