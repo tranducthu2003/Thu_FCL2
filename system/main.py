@@ -24,6 +24,8 @@ from flcore.servers.serverPILORA import PILORA
 
 from flcore.servers.serverLANDER import LANDERServer
 from flcore.servers.serverGLFC import GLFCServer
+from flcore.servers.serverssi import FedSSI
+from flcore.servers.serverrefedplus import ReFedPlus
 
 from flcore.trainmodel.models import *
 
@@ -121,6 +123,18 @@ def run(args):
             args.model.fc = nn.Identity()
             args.model = BaseHeadSplit(args.model, args.head)
             server = FedAvg(args, i)
+
+        if args.algorithm == "FedSSI":
+            args.head = copy.deepcopy(args.model.fc)
+            args.model.fc = nn.Identity()
+            args.model = BaseHeadSplit(args.model, args.head)
+            server = FedSSI(args, i)
+
+        if args.algorithm == "ReFedPlus":
+            args.head = copy.deepcopy(args.model.fc)
+            args.model.fc = nn.Identity()
+            args.model = BaseHeadSplit(args.model, args.head)
+            server = ReFedPlus(args, i)
 
         elif args.algorithm == "FedALA":
             args.head = copy.deepcopy(args.model.fc)
