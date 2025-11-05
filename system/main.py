@@ -21,6 +21,7 @@ from flcore.servers.serveraffcl import FedAFFCL
 from flcore.servers.servertarget import FedTARGET
 from flcore.servers.serverl2p import FedL2P
 from flcore.servers.serverssi import FedSSI
+from flcore.servers.serverrefedplus import ReFedPlus
 
 from flcore.trainmodel.models import *
 
@@ -102,12 +103,17 @@ def run(args):
             args.model = BaseHeadSplit(args.model, args.head)
             server = FedAvg(args, i)
 
-        # select algorithm
         if args.algorithm == "FedSSI":
             args.head = copy.deepcopy(args.model.fc)
             args.model.fc = nn.Identity()
             args.model = BaseHeadSplit(args.model, args.head)
             server = FedSSI(args, i)
+
+        if args.algorithm == "ReFedPlus":
+            args.head = copy.deepcopy(args.model.fc)
+            args.model.fc = nn.Identity()
+            args.model = BaseHeadSplit(args.model, args.head)
+            server = ReFedPlus(args, i)
 
         elif args.algorithm == "FedALA":
             args.head = copy.deepcopy(args.model.fc)

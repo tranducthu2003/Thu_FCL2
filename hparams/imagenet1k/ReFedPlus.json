@@ -6,8 +6,8 @@
     "datadir": "dataset",
     "device": "cuda",
     "device_id": "0",
-    "dataset": "CIFAR10",
-    "num_classes": 10,
+    "dataset": "IMAGENET1k",
+    "num_classes": 1000,
     "model": "CNN",
     "batch_size": 128,
     "local_learning_rate": 0.005,
@@ -15,7 +15,7 @@
     "learning_rate_decay_gamma": 0.99,
     "global_rounds": 25,
     "local_epochs": 5,
-    "algorithm": "FedSSI",
+    "algorithm": "ReFedPlus",
     "join_ratio": 1.0,
     "random_join_ratio": false,
     "num_clients": 10,
@@ -24,11 +24,12 @@
     "eval_gap": 1,
     "out_folder": "out",
     "note": null,
-    "num_tasks": 25,
+    "num_tasks": 2500,
 
     "client_drop_rate": 0.0,
     "time_threthold": 10000,
 
-    "lambda_q": 0.1,
-    "alpha": 0.1
+    "pim_iterations": 5,
+    "lambda_param": 0.5,
+    "pim_lr": 0.01
 }
