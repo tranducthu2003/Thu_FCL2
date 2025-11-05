@@ -219,7 +219,7 @@ class Client(object):
             # target_param.grad = param.grad.clone()
 
     def update_parameters(self, model, new_params):
-        for param, new_param in zip(model.parameters(), new_params):    
+        for param, new_param in zip(model.parameters(), new_params):
             param.data = new_param.data.clone()
 
     def test_metrics(self, task):
