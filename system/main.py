@@ -124,13 +124,13 @@ def run(args):
             args.model = BaseHeadSplit(args.model, args.head)
             server = FedAvg(args, i)
 
-        if args.algorithm == "FedSSI":
+        elif args.algorithm == "FedSSI":
             args.head = copy.deepcopy(args.model.fc)
             args.model.fc = nn.Identity()
             args.model = BaseHeadSplit(args.model, args.head)
             server = FedSSI(args, i)
 
-        if args.algorithm == "ReFedPlus":
+        elif args.algorithm == "ReFedPlus":
             args.head = copy.deepcopy(args.model.fc)
             args.model.fc = nn.Identity()
             args.model = BaseHeadSplit(args.model, args.head)

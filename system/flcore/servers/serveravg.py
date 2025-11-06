@@ -58,45 +58,8 @@ class FedAvg(Server):
                         print(f"[Summary] round={round_idx} time={time_cost:.2f}s")
                     def finish(self): pass
                 self._roundlog = _Dummy()
-        if self.args.num_tasks % self.N_TASKS != 0:
-            raise ValueError("Set num_task again")
-
-        for task in range(self.args.num_tasks):
-
-            # print(f"\n================ Current Task: {task} =================")
-            if task == 0:
-                 # update labels info. for the first task
-                available_labels = set()
-                available_labels_current = set()
-                available_labels_past = set()
-                for u in self.clients:
-                    available_labels = available_labels.union(set(u.classes_so_far))
-                    available_labels_current = available_labels_current.union(set(u.current_labels))
-                for u in self.clients:
-                    u.available_labels = list(available_labels)
-                    u.available_labels_current = list(available_labels_current)
-                    u.available_labels_past = list(available_labels_past)
-
-            else:
-                self.current_task = task
-                
-                torch.cuda.empty_cache()
-                for i in range(len(self.clients)):
-                    
-                    if self.args.dataset == 'IMAGENET1k':
-                        train_data, label_info = read_client_data_FCL_imagenet1k(i, task=task,
-                                                                                 classes_per_task=self.args.cpt,
-                                                                                 count_labels=True)
-                    elif self.args.dataset == 'CIFAR100':
-                        train_data, label_info = read_client_data_FCL_cifar100(i, task=task,
-                                                                               classes_per_task=self.args.cpt,
-                                                                               count_labels=True)
-                    elif self.args.dataset == 'CIFAR10':
-                        train_data, label_info = read_client_data_FCL_cifar10(i, task=task,
-                                                                              classes_per_task=self.args.cpt,
-                                                                              count_labels=True)
-                    else:
-                        raise NotImplementedError("Not supported dataset")
+        # if self.args.num_tasks % self.N_TASKS != 0:
+        #     raise ValueError("Set num_task again")
 
         # ---------- Helpers ----------
         def _cid(c, idx):
