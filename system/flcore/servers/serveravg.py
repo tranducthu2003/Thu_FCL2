@@ -1,4 +1,5 @@
 import time, copy, inspect
+from xmlrpc import client
 import torch
 import torch.nn as nn
 from flcore.clients.clientavg import clientAVG
@@ -226,6 +227,9 @@ class FedAvg(Server):
                     ret = None
                     try:
                         ret = _call_client_train(client, task=task, round_idx=i, glob_iter=glob_iter)
+                        if i == self.global_rounds - 1:
+                            save_path = f"checkpoints/client_{client.id}_task_{task}.pt"
+                            torch.save(client.model.model.state_dict(), save_path)
                     except Exception as e:
                         ret = {"error": str(e)}
 
