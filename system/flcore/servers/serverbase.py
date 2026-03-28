@@ -174,7 +174,7 @@ class Server(object):
                 info = d[task_idx]
                 if "assigned_labels" in info: return [int(x) for x in info["assigned_labels"]]
                 if "labels" in info:          return [int(x) for x in info["labels"]]
-        if hasattr(client, "task_dict") and client.task_dict.get(task_idx):
+        if hasattr(client, "task_dict") and client.task_dict.get(task_idx) is not None: 
             return [int(x) for x in client.task_dict[task_idx]]
         return []
 
