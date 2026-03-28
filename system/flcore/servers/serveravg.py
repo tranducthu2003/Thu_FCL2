@@ -1,3 +1,4 @@
+from os import name
 import time, copy, inspect
 from xmlrpc import client
 import torch
@@ -233,6 +234,9 @@ class FedAvg(Server):
                             os.makedirs(save_dir, exist_ok=True)
 
                             save_path = f"{save_dir}/client_{client.id}_task_{task}.pt"
+                            for name, param in client.model.model.state_dict().items():
+                                print(name, param.shape)
+    
                             torch.save(client.model.model.state_dict(), save_path)
                             # DEBUG
                             import os
