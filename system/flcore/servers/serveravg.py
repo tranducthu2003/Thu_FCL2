@@ -229,8 +229,10 @@ class FedAvg(Server):
                         ret = _call_client_train(client, task=task, round_idx=i, glob_iter=glob_iter)
                         if i == self.global_rounds - 1:
                             print(f"Saving model for client {client.id} at task {task}...")
-                            save_path = f"/kaggle/working/Thu_FCL2/checkpoints/client_{client.id}_task_{task}.pt"
-                            os.makedirs("/kaggle/working/Thu_FCL2/checkpoints", exist_ok=True)
+                            save_dir = "/kaggle/working/checkpoints"
+                            os.makedirs(save_dir, exist_ok=True)
+
+                            save_path = f"{save_dir}/client_{client.id}_task_{task}.pt"
                             torch.save(client.model.model.state_dict(), save_path)
                     except Exception as e:
                         ret = {"error": str(e)}
