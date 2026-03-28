@@ -234,6 +234,11 @@ class FedAvg(Server):
 
                             save_path = f"{save_dir}/client_{client.id}_task_{task}.pt"
                             torch.save(client.model.model.state_dict(), save_path)
+                            # DEBUG
+                            import os
+                            print("Saved to:", save_path)
+                            print("Exists:", os.path.exists(save_path))
+                            print("All files:", os.listdir(save_dir))
                     except Exception as e:
                         ret = {"error": str(e)}
 
