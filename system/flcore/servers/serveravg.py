@@ -226,9 +226,11 @@ class FedAvg(Server):
 
                     # call train with supported kwargs
                     ret = None
-                    try:
-                        ret = _call_client_train(client, task=task, round_idx=i, glob_iter=glob_iter)
-                        if i == self.global_rounds - 1:
+                    
+                    ret = _call_client_train(client, task=task, round_idx=i, glob_iter=glob_iter)
+                    
+                    if i == self.global_rounds - 1:
+                        try:
                             print(f"Saving model for client {client.id} at task {task}...")
                             save_dir = "/kaggle/working/checkpoints"
                             # os.makedirs(save_dir, exist_ok=True)
@@ -236,16 +238,18 @@ class FedAvg(Server):
                             save_path = f"{save_dir}/client_{client.id}_task_{task}.pt"
                             for name, param in client.model.model.state_dict().items():
                                 print(name, param.shape)
-    
-                            torch.save(client.model.model.state_dict(), save_path)
+
+                            model_to_save = client.model.model if hasattr(client.model, 'model') else client.model
+                            torch.save(model_to_save.state_dict(), save_path)
                             print("luu sap thanh cong , hay check lai")
                             # DEBUG
                             import os
                             print("Saved to:", save_path)
                             print("Exists:", os.path.exists(save_path))
                             print("All files:", os.listdir(save_dir))
-                    except Exception as e:
-                        ret = {"error": str(e)}
+                        except Exception as save_err:
+                            print(f"[ERROR] Failed to save client {client.id} task {task}: {save_err}")
+                            import traceback; traceback.print_exc()
 
                     # compute delta L2 of local update
                     delta_l2 = None
