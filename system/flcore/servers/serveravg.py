@@ -231,13 +231,14 @@ class FedAvg(Server):
                         if (glob_iter + 1) % num_tasks == 0:
                             print(f"Saving model for client {client.id} at task {task}...")
                             save_dir = "/kaggle/working/checkpoints"
-                            os.makedirs(save_dir, exist_ok=True)
+                            # os.makedirs(save_dir, exist_ok=True)
 
                             save_path = f"{save_dir}/client_{client.id}_task_{task}.pt"
                             for name, param in client.model.model.state_dict().items():
                                 print(name, param.shape)
     
                             torch.save(client.model.model.state_dict(), save_path)
+                            print("luu sap thanh cong , hay check lai")
                             # DEBUG
                             import os
                             print("Saved to:", save_path)
