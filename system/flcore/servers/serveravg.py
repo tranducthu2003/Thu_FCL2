@@ -239,7 +239,7 @@ class FedAvg(Server):
                             for name, param in client.model.model.state_dict().items():
                                 print(name, param.shape)
 
-                            model_to_save = client.model.model if hasattr(client.model, 'model') else client.model
+                            model_to_save = client.model.base if hasattr(client.model, 'base ') else client.model
                             torch.save(model_to_save.state_dict(), save_path)
                             print("luu sap thanh cong , hay check lai")
                             # DEBUG
