@@ -236,7 +236,7 @@ class FedAvg(Server):
                             # os.makedirs(save_dir, exist_ok=True)
 
                             save_path = f"{save_dir}/client_{client.id}_task_{task}.pt"
-                            for name, param in client.model.model.state_dict().items():
+                            for name, param in client.model.base.state_dict().items():
                                 print(name, param.shape)
 
                             model_to_save = client.model.base if hasattr(client.model, 'base ') else client.model
