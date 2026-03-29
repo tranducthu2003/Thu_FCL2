@@ -228,7 +228,7 @@ class FedAvg(Server):
                     ret = None
                     try:
                         ret = _call_client_train(client, task=task, round_idx=i, glob_iter=glob_iter)
-                        if (glob_iter + 1) % num_tasks == 0:
+                        if i == self.global_rounds - 1:
                             print(f"Saving model for client {client.id} at task {task}...")
                             save_dir = "/kaggle/working/checkpoints"
                             # os.makedirs(save_dir, exist_ok=True)
