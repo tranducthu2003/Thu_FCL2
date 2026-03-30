@@ -12,7 +12,7 @@ from torchvision.models import resnet18
 from torchvision.models.resnet import BasicBlock
 from sklearn.linear_model import LinearRegression
 
-from utils.data_utils_mine import *
+from utils.data_utils import *
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Logger — vừa print terminal, vừa ghi file
