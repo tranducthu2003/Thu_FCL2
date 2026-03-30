@@ -264,7 +264,7 @@ def main(args):
     torch.manual_seed(args.seed)
 
     logger.info('-' * 60)
-    logger.info(f'  Scenario  : {args.scenario}')
+    logger.info(f'  partition_options  : {args.partition_options}')
     logger.info(f'  Backbone  : {args.backbone}')
     logger.info(f'  Clients   : {args.num_clients}')
     logger.info(f'  Tasks     : {args.num_tasks}')
