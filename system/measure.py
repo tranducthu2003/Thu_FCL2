@@ -63,28 +63,29 @@ def compute_width(_model, _target_layer: int):
     raise TypeError(f"Unexpected type: {type(layer)}")
 
 def load_resnet18_from_checkpoint(ckpt_path: str) -> torch.nn.Module:
-    model  = resnet18(weights=None)
+    """
+    Chỉ load phần backbone (base.*), bỏ qua classifier (head/fc).
+    """
+    model  = resnet18(weights=None)  # fc mặc định 1000, không quan trọng vì không dùng
     raw_sd = torch.load(ckpt_path, map_location='cpu')
 
-    first_key = next(iter(raw_sd.keys()))
+    # Strip prefix 'base.' → key chuẩn torchvision, bỏ qua 'head.*'
+    new_sd = {}
+    for k, v in raw_sd.items():
+        if k.startswith('base.'):
+            new_sd[k[len('base.'):]] = v   # base.conv1.weight → conv1.weight
+        # bỏ qua head.* hoàn toàn
 
-    if first_key.startswith('base.'):
-        # Checkpoint lưu từ wrapper → strip prefix 'base.' và remap 'head.' → 'fc.'
-        new_sd = {}
-        for k, v in raw_sd.items():
-            if k.startswith('base.'):
-                new_sd[k[len('base.'):]] = v        # "base.conv1.weight" → "conv1.weight"
-            elif k.startswith('head.'):
-                new_sd[k.replace('head.', 'fc.')] = v  # "head.weight" → "fc.weight"
-            # bỏ qua các key khác không thuộc backbone
-        raw_sd = new_sd
+    # strict=False: bỏ qua fc (không load), bỏ qua num_batches_tracked
+    missing, unexpected = model.load_state_dict(new_sd, strict=False)
 
-    # strict=False để bỏ qua num_batches_tracked (BN buffer, không ảnh hưởng inference)
-    missing, unexpected = model.load_state_dict(raw_sd, strict=False)
-    if missing:
-        logger.warning(f'Missing keys: {missing}')
-    if unexpected:
-        logger.warning(f'Unexpected keys: {unexpected}')
+    # Chỉ warn key thực sự quan trọng (bỏ qua fc và num_batches_tracked)
+    real_missing = [
+        k for k in missing
+        if 'num_batches_tracked' not in k and not k.startswith('fc.')
+    ]
+    if real_missing:
+        logger.warning(f'  [WARN] Missing backbone keys: {real_missing}')
 
     model.eval()
     return model
@@ -329,7 +330,8 @@ if __name__ == '__main__':
     parser.add_argument('--cpt',         type=int, default=2,
                         help='Classes per task')
     parser.add_argument('--seed',        type=int, default=42)
-
+    parser.add_argument('--classes',     type=int, default=10,
+                        help='Tổng số classes (dùng để khởi tạo ResNet18 đúng num_classes)')
     # WandB
     parser.add_argument('--use_wandb',type=bool, default=False, help='Có log lên WandB không')
 
