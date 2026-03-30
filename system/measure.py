@@ -62,6 +62,33 @@ def compute_width(_model, _target_layer: int):
             return torch.norm(block.conv2.weight, p='fro').item()
     raise TypeError(f"Unexpected type: {type(layer)}")
 
+def load_resnet18_from_checkpoint(ckpt_path: str) -> torch.nn.Module:
+    model  = resnet18(weights=None)
+    raw_sd = torch.load(ckpt_path, map_location='cpu')
+
+    first_key = next(iter(raw_sd.keys()))
+
+    if first_key.startswith('base.'):
+        # Checkpoint lưu từ wrapper → strip prefix 'base.' và remap 'head.' → 'fc.'
+        new_sd = {}
+        for k, v in raw_sd.items():
+            if k.startswith('base.'):
+                new_sd[k[len('base.'):]] = v        # "base.conv1.weight" → "conv1.weight"
+            elif k.startswith('head.'):
+                new_sd[k.replace('head.', 'fc.')] = v  # "head.weight" → "fc.weight"
+            # bỏ qua các key khác không thuộc backbone
+        raw_sd = new_sd
+
+    # strict=False để bỏ qua num_batches_tracked (BN buffer, không ảnh hưởng inference)
+    missing, unexpected = model.load_state_dict(raw_sd, strict=False)
+    if missing:
+        logger.warning(f'Missing keys: {missing}')
+    if unexpected:
+        logger.warning(f'Unexpected keys: {unexpected}')
+
+    model.eval()
+    return model
+
 def compute_feature_resnet18(_model, _model_task_index, _dataset, _target_layer_index: str, seed, args):
     """
     _model             : torchvision ResNet18 instance
@@ -167,14 +194,12 @@ def measure_all_representation_drift(args):
                     continue
 
             # Load model t
-            model_t = resnet18(pretrained=False)
-            model_t.load_state_dict(torch.load(ckpt_t, map_location='cpu'))
+            model_t      = load_resnet18_from_checkpoint(ckpt_t)
             model_t.eval()
             logger.info(f'  │  model_t  ← {ckpt_t}')
 
             # Load model t'
-            model_tprime = resnet18(pretrained=False)
-            model_tprime.load_state_dict(torch.load(ckpt_tp, map_location='cpu'))
+            model_tprime = load_resnet18_from_checkpoint(ckpt_tp)
             model_tprime.eval()
             logger.info(f'  │  model_t\' ← {ckpt_tp}')
 
