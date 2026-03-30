@@ -222,7 +222,7 @@ def measure_all_representation_drift(args):
                     feat_t = compute_feature_resnet18(
                         model_t,      t,      test_data_t, target_layer, args.seed, args)
                     feat_tp = compute_feature_resnet18(
-                        model_tprime, tprime, test_data_tprime, target_layer, args.seed, args)
+                        model_tprime, tprime, test_data_t, target_layer, args.seed, args)
 
                     # Width: block0 (stem) không có BasicBlock → nan
                     if k == 0:
