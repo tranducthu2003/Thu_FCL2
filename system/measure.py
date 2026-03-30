@@ -153,7 +153,7 @@ def compute_sigma(_feature_t, _feature_tprime):
 def compute_eps(_feature_t, _feature_tprime):
     reg = LinearRegression(fit_intercept=False).fit(_feature_t, _feature_tprime)
     transformed = reg.predict(_feature_tprime)
-    return np.linalg.norm(_feature_t - transformed, ord=2, axis=-1).max()
+    return np.linalg.norm(_feature_t - transformed, ord=2, axis=-1).min()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
