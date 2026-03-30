@@ -69,11 +69,11 @@ def compute_feature_resnet18(_model, _model_task_index, _dataset, _target_layer_
     _dataset           : DataLoader hoặc list of (features, targets)
     _target_layer_index: 'block0'..'block4'
     seed               : seed value
-    args               : argparse namespace (cần args.scenario, args.backbone)
+    args               : argparse namespace (cần args.partition_options, args.backbone)
     """
     cache_dir = os.getenv("CACHE_DIR", "./cache")
     fname = (
-        f'{cache_dir}/{args.scenario}-{seed}-{args.backbone}'
+        f'{cache_dir}/{args.partition_options}-{seed}-{args.backbone}'
         f'-task{_model_task_index}-layer{_target_layer_index}.pkl'
     )
 
@@ -132,7 +132,7 @@ def compute_eps(_feature_t, _feature_tprime):
 # Hàm đo chính
 # ─────────────────────────────────────────────────────────────────────────────
 def measure_all_representation_drift(args):
-    output_file = f'./outputs/representation_drift-{args.scenario}-{args.backbone}.csv'
+    output_file = f'./outputs/representation_drift-{args.partition_options}-{args.backbone}.csv'
 
     # Header CSV (chỉ ghi lần đầu)
     if not os.path.isfile(output_file):
@@ -275,7 +275,7 @@ def main(args):
     if args.use_wandb:
         wandb.init(
             project=args.wandb_project,
-            name=args.wandb_run_name or f'{args.scenario}-{args.backbone}-drift',
+            name=args.wandb_run_name or f'{args.partition_options}-{args.backbone}-drift',
             config=vars(args),
         )
 
@@ -296,7 +296,7 @@ if __name__ == '__main__':
                         default=r'D:\FCL\checkpoints_client_task',
                         help='Thư mục chứa checkpoint (client_{c}_task_{t}.pt)')
 
-    # Scenario / model
+    # Partition options / model
     parser.add_argument('--partition_options',    type=str, default='hetero')
     parser.add_argument('--backbone',    type=str, default='ResNet18')
     parser.add_argument('--num_clients', type=int, default=10)
