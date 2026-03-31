@@ -225,7 +225,7 @@ def measure_all_representation_drift(args):
                     feat_t = compute_feature_resnet18(
                         model_t,      t,      test_data_t, target_layer, args.seed, args)
                     feat_tp = compute_feature_resnet18(
-                        model_tprime, tprime, test_data_t, target_layer, args.seed, args)
+                        model_tprime, tprime, test_data_tprime, target_layer, args.seed, args)
 
                     # Width: block0 (stem) không có BasicBlock → nan
                     if k == 0:
@@ -245,6 +245,7 @@ def measure_all_representation_drift(args):
                     logger.info(
                         f'  │  {progress} {target_layer} | '
                         f'σ={sigma:.4f}  ε={eps:.4f}  '
+                        f'eta_min ={eta_min:.4f} eta_max = {eta_max:.4f}' 
                         f'η_min={eta_min_n:.4f}  η_max={eta_max_n:.4f}  '
                         f'W_t={width_t:.4f}  W_t\'={width_tp:.4f}'
                     )
